@@ -3,8 +3,8 @@
 const shuf=a=>{for(let i=a.length;i>1;){const j=Math.random()*i--|0;[a[i],a[j]]=[a[j],a[i]]}return a}; // (a fair shuffle; sorting by random numbers is not)
 const pick=calm=>{
   const fill=a=>{shuf(a);if(a.at(-1)==cur)a.reverse();return a}; // a new bag holds every scene (the one on screen too, just not as the first to come out)
-  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
-  if(!qbag.length)qbag=fill((dc?DQ:DARK).filter(i=>SC[i]));
+  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
+  if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
 function next(n){
@@ -16,12 +16,16 @@ function next(n){
   const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
   sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY?48:big?32:rn<.25+.35*fa?8:16;
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
-  pl=look;alk=dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon). Code rain is a transition now and a look only on K
+  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
 const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore()};
 
+// Techno strobes: a lamp above the picture fires on the beat, but only in runs: through the last bar of every four, and for two bars after the song steps up
+// (there it replaces the white flash of the other moods). Each flash comes from the next of four lamps. Never more than three a second (mkStrobe),
+// none for people who asked their system for reduced motion, none before the fog is in. b: the beat number. (The limiter runs on the wall clock, not the song's.)
+const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
 function frame(now){
   requestAnimationFrame(frame);
   const pf0=performance.now();fa+=(now-last)/1e3;fn++;fw=max(fw,now-last);
@@ -34,7 +38,7 @@ function frame(now){
     }
     if(inf>1e9&&/bench/.test(location.search))console.log(`BENCH${XDR&&XDR.on?' HDR':''} ${fps.toFixed(1)} fps ${W}x${H} lv${lv} s${cur+1} worst ${wst.toFixed(0)} ms js ${(jsa/max(1,jsn)).toFixed(2)} ms${t-sw<tl?' TR'+tk:''}`);jsa=jsn=0; // test hook ?bench: read by the scratch benchmark
   }
-  dt=min(.1,(now-last)/1e3);last=now;
+  dt=min(.1,(now-last)/1e3);last=now;stb*=Math.exp(-dt*14); // (a strobe flash is over in a tenth of a second)
   document.body.classList.toggle('p',FAKE||!v.paused&&!v.ended);
   // clock: own smooth clock, snapped to the media time so pause/seek stay in sync; free-running before a file plays
   live=!an||!v.paused;
@@ -76,12 +80,12 @@ function frame(now){
     const st=floor(bp*4);
     if(live&&st!=lst){
       if(st==lst+1&&!quiet&&PAT[st&63]>.3)kick=max(kick,PAT[st&63]); // softer kicks pulse softer
-      if(st%4==0){beats=st/4;if(st==lst+1&&beats%16==0)hue+=67} // colours change every 4 bars, on the bar line
+      if(st%4==0){beats=st/4;if(st==lst+1&&beats%16==0)hue+=67;if(st==lst+1&&!quiet)flash(beats)} // colours change every 4 bars, on the bar line
       lst=st;
     }
   }else if(bh&&!quiet){ // no tempo known: count the detected beats
     kick=1;
-    if(++beats%16==0)hue+=67;
+    if(++beats%16==0)hue+=67;flash(beats);
   }
   // camera: every scene gets the same flowing arc over its 8 bars (16 s without a tempo), no jumps anywhere: push in over the first half, sway like a
   // pendulum, pump with the kick pattern in the third quarter, pull back out in the last, and (every other scene) one full roll into the transition.
@@ -91,8 +95,9 @@ function frame(now){
   ma+=((scn%3==1&&u>.4&&u<.8?1:0)-ma)*min(1,dt*1.5);
   // mood: slow songs (under ~100 BPM) and songs without a kick drum switch to the dark mood: steel-blue film look, vignette, grain, drifting haze, black bars,
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
-  // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. M cycles auto / party / dark / disco.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*.6);look=lkm>5?alk:lkm;if(lkm<6)pl=look;
+  // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
+  // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2)); // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)look=lkm>5?alk:lkm;if(lkm<6)pl=look;
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly
@@ -116,7 +121,7 @@ function frame(now){
   psc=sc;
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
     const up=arm[1]>0,a=min(1,abs(arm[1]));
-    if(up&&t>=arm[0]){bang=a;hue+=67;if(a>.6)sub=max(sub,a)}
+    if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6)sub=max(sub,a)}
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
@@ -138,7 +143,7 @@ function frame(now){
   if(cub&&!(p<1&&prev>=0)){x.copy(NEW,MAIN);cub=0} // the cube has landed: the new scene moves from its own target to the frame, trails and all
   x.fillStyle='rgba(0,0,10,.4)';x.fillRect(0,0,W,H);
   x.globalCompositeOperation='lighter';
-  x.fillStyle=hs(hue,(kick*.07+bang*.5)*(1-.7*dk),50+bang*40);x.fillRect(0,0,W,H);
+  x.fillStyle=hs(hue,(kick*.07+bang*.5*(1-tca))*(1-.7*dk),50+bang*40*(1-tca));x.fillRect(0,0,W,H);
   roll=sin(t*.4)*.15+cr;x.translate(W/2,H/2);x.rotate(roll);
   R=min(W,H)/2;F=R*1.6*(1+kick*.04);
 
@@ -231,7 +236,7 @@ function frame(now){
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE'],
-      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO'][MO]+')','PARTY','DARK','DISCO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
+      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;

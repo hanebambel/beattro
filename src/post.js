@@ -2,7 +2,7 @@
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
 let view=c,POST=0,post=0,P3=0;
 if(gl){
-  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k;uniform int lk,l2;out vec4 o;
+  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
 vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
   vec2 d=q-.5;vec3 c,b=textureLod(X,q,2.).rgb*.4+textureLod(X,q,3.5).rgb*.3+textureLod(X,q,5.).rgb*.2+textureLod(X,q,6.5).rgb*.1;
@@ -59,6 +59,18 @@ void main(){
     vec2 gp=vec2(atan(v.x,.6)*8.+tf*.22,atan(v.y,length(vec2(v.x,.6)))*8.);gp.x+=.5*mod(floor(gp.y),2.);
     vec2 id=floor(gp);float hs=fract(sin(dot(vec2(mod(id.x,89.),id.y),vec2(127.1,311.7)))*43758.5);
     c+=step(.45,hs)*smoothstep(.16+.2*fract(hs*7.),.04,length(fract(gp)-.5+.2*vec2(fract(hs*13.)-.5,fract(hs*29.)-.5)))*mix(vec3(1,.85,.6),.5+.5*cos(6.283*(h+hs*3.+vec3(0,.33,.67))),.5)*(.1+.25*fract(hs*17.)+.06*k)*s2; // (not every mirror throws one, and they differ in size and strength)
+    // fog: every spot is the end of a beam that starts at the ball, and haze in the room makes the beam visible. Seen from here a beam is a thin cone from the
+    // ball to its spot, so this pixel walks outwards from the ball through the grid of spots (a third of a cell per step) and is lit by every spot whose cone it is in.
+    float rr=length(v),ps=atan(rr,.6);vec2 vh=v/max(rr,1e-4);vec3 bm=vec3(0);
+    for(int i=0;i<24;i++){
+      float a=ps+(float(i)+jt)*.042;if(a>1.25)break;
+      vec2 P=vh*.6*tan(a),g2=vec2(atan(P.x,.6)*8.+tf*.22,atan(P.y,length(vec2(P.x,.6)))*8.);float o2=.5*mod(floor(g2.y),2.);g2.x+=o2;
+      vec2 i2=floor(g2);float h2=fract(sin(dot(vec2(mod(i2.x,89.),i2.y),vec2(127.1,311.7)))*43758.5);if(h2<.45)continue;
+      vec2 gc=i2+.5-.2*vec2(fract(h2*13.)-.5,fract(h2*29.)-.5),cw=vec2(.6*tan((gc.x-o2-tf*.22)/8.),0);cw.y=tan(gc.y/8.)*length(vec2(cw.x,.6)); // where that spot is on the wall
+      float wr=(.16+.2*fract(h2*7.))/8.*(.36+dot(cw,cw))/.6;
+      bm=max(bm,mix(vec3(1,.85,.6),.5+.5*cos(6.283*(h+h2*3.+vec3(0,.33,.67))),.5)*fract(h2*17.)*fract(h2*17.)*smoothstep(wr,wr*.2,abs(cw.x*vh.y-cw.y*vh.x))*smoothstep(-.03,.03,dot(cw,vh)-rr));
+    }
+    c+=(bm*(.3+.7*exp(-rr*1.6))*(.65+.35*sin(v.x*6.+tf*.25+sin(v.y*5.-tf*.2)*1.5))*.75*hr+vec3(1,.8,.55)*exp(-rr*5.)*.05)*s2; // (the brightest spots have the clearest beams; the haze is uneven and drifts; a little glow around the ball)
     c=mix(c,vec3(.3,.27,.22),smoothstep(.0024,.001,abs(v.x))*step(0.,v.y)); // the string
     vec2 bv=v/.06;float b2=dot(bv,bv);
     if(b2<1.){ // the ball: small square mirrors. Each shows the part of the picture it happens to face and flashes when it faces one of three lamps
@@ -67,6 +79,16 @@ void main(){
       float sp=pow(max(dot(rf,vec3(.5,.5,.707)),0.),30.)+pow(max(dot(rf,vec3(-.69,.2,.69)),0.),30.)+pow(max(dot(rf,vec3(.1,-.6,.8)),0.),30.);
       c=mix(c,(textureLod(X,.5+rf.xy*.42,ml).rgb*1.4+.06+vec3(1,.93,.8)*sp*1.6)*(.3+.7*n.z)*smoothstep(.5,.4,max(tc.x,tc.y)),smoothstep(1.,.9,b2));
     }
+  }
+  if(tc>.002){ // the techno mood, arriving in two steps as tc goes from 0 to 1: fog first (f1), then the colours turn cold and hard (f2). The strobes only fire once it is all there.
+    float as=r.x/r.y,f1=smoothstep(0.,.6,tc),f2=smoothstep(.5,1.,tc),l=dot(c,vec3(.3,.5,.2));
+    c=mix(c,mix(vec3(l),c,.5)*vec3(.85,.97,1.12)*(.75+.5*l),f2); // steel colours: half the colour, the darks darker
+    // fog: three layers of the noise texture drifting against each other, thicker towards the floor. It has no light of its own: it shows what the scene around it
+    // shines into it (a wide blur of the frame), and what the strobe throws in. ponytail: the noise texture is the glow forest's (unit 4); without that scene, no fog.
+    vec2 fq=vec2(q.x*as,q.y);float n=texture(NZ,fq*vec2(.5,1.1)+vec2(tf*.011,tf*.003)).r*.5+texture(NZ,fq*vec2(1.3,3.1)-vec2(tf*.017,tf*.004)).r*.3+texture(NZ,fq*vec2(3.3,7.)+vec2(tf*.023,-tf*.006)).r*.2,dn=smoothstep(.36,.66,n)*(.35+.65*smoothstep(.85,0.,q.y)); // (wider than high: banks and wisps)
+    c=mix(c,textureLod(X,q,log2(r.y)-4.5).rgb*1.3+vec3(.035,.045,.065),dn*.6*f1);
+    float ld=length((q-vec2(sx,1.04))*vec2(as,1)); // the strobe: a lamp just above the top edge at sx. Its flash lights the fog around it and falls off with distance: never the whole frame white
+    c+=vec3(.86,.93,1)*sb*(exp(-ld*2.)*(.15+1.6*dn+.5*n)+exp(-ld*22.)*1.5);
   }
   o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da),1); // da: the dark mood has darker corners and more grain
 }`);
@@ -82,7 +104,8 @@ void main(){
     POST.draw=()=>{
       x.flush();
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick); // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
+      // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
     };

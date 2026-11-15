@@ -1,4 +1,7 @@
 *.m4a
+*.mp4
+!BeautifulSorrowMaster.m4a
+index.before-night.html
 tools/out/
 .DS_Store
-index.before-night.html
+*.swp

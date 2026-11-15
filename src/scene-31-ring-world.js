@@ -26,11 +26,11 @@ async function analyse(file){
     songMap(E,1);sect(sdu=ab.duration);
     const tp=tempo(d,44100>>k),up=SEC.find(s=>s[1]>0);
     if(tp[3]>.1){BPM=tp[0];[T0,PAT]=phase(BPM,tp[1],tp[2],up?up[0]/SN*sdu:-1)} // a clear tempo
-    MO=BPM?BPM<100?1:BPM<=115?2:0:+(KD.filter(v=>v>=1).length<SN*.15);bag=[];qbag=[]; // slow, or hardly any kick drum: the dark mood. 100 to 115 BPM: disco
+    MO=BPM?BPM<100?1:BPM<=115?2:BPM>=130?3:0:+(KD.filter(v=>v>=1).length<SN*.15);bag=[];qbag=[]; // slow, or hardly any kick drum: the dark mood. 100 to 115 BPM: disco. From 130 BPM: techno
     m2.clearRect(0,0,512,512);for(let c=0;c<SN;c+=4)spoke(c,b=>SD[(b*SN+c)*4]/255); // once more, now with the final levels
     for(const[c,n]of SEC){const a=c/SN*TAU-PI/2;m2.strokeStyle=n>0?'#fff':'#48f';m2.beginPath();m2.moveTo(256+cos(a)*241,256+sin(a)*241);m2.lineTo(256+cos(a)*255,256+sin(a)*255);m2.stroke()}
     const ps=[...PAT].map(v=>v>.6?'X':v>.3?'x':'.').join(''),pl=[16,32,64].find(l=>ps==ps.slice(0,l).repeat(64/l)); // shown as long as it takes to repeat: 4, 8 or 16 beats
-    apr=1;sst=['','DARK MOOD   ','DISCO MOOD   '][MO]+(BPM?BPM.toFixed(1)+' BPM   ':'')+SEC.length+' SECTION CHANGES'+(BPM?'\nKICK '+ps.slice(0,pl):'');
+    apr=1;sst=['','DARK MOOD   ','DISCO MOOD   ','TECHNO MOOD   '][MO]+(BPM?BPM.toFixed(1)+' BPM   ':'')+SEC.length+' SECTION CHANGES'+(BPM?'\nKICK '+ps.slice(0,pl):'');
   }catch(e){console.warn('song analysis off:',e)}
   if(g==sgen&&!SOK){apr=-1;sst='WRITTEN LIVE AS IT PLAYS (LOOKING BACK)'}
 }

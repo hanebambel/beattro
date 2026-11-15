@@ -51,6 +51,19 @@ assert(Math.abs(sb - 76) < .5, `slow song: ${sb} BPM`);
 const disco = Float32Array.from({ length: 882000 }, (_, i) => { const t = i / 44100, b = t * 108 / 60; return 1e-3 * Math.random() + Math.exp(-(b % 1) * 9) * Math.sin(t * TAU * 55) + .3 * Math.exp(-((b + .5) % 1) * 14) * Math.sin(t * TAU * 7000) + .2 * Math.exp(-((b + .5) % 1) * 9) * Math.sin(t * TAU * 110); });
 const db = sa.tempo(disco, 44100)[0];
 assert(Math.abs(db - 108) < .5, `disco song: ${db} BPM`);
+// techno tempo: four on the floor at 140 BPM with an off-beat bass as loud as the kick, and a plain 174. Both must stay fast (not folded to half)
+for (const bpm of [140, 174]) {
+  const tr = Float32Array.from({ length: 882000 }, (_, i) => { const t = i / 44100, b = t * bpm / 60; return 1e-3 * Math.random() + Math.exp(-(b % 1) * 9) * Math.sin(t * TAU * 55) + (bpm == 140 ? Math.exp(-((b + .5) % 1) * 9) * Math.sin(t * TAU * 80) : 0); });
+  const tb = sa.tempo(tr, 44100)[0];
+  assert(Math.abs(tb - bpm) < .5, `techno song at ${bpm}: ${tb} BPM`);
+}
+// strobe limiter: asked for a flash on every sixteenth at 130 to 200 BPM for a minute, it must never start more than three in any one second
+const mkStrobe = eval(html.match(/const mkStrobe=(.*);/)[1]);
+for (let bpm = 130; bpm <= 200; bpm += 7) {
+  const st = mkStrobe(), on = [];
+  for (let i = 0; i < 3600; i++) { const t = i / 60; if (st(t, Math.floor(t * bpm / 15) != Math.floor((t - 1 / 60) * bpm / 15))) on.push(t); }
+  assert(on.length > 60 && on.every((t, i) => i < 3 || t - on[i - 3] >= 1), `strobe at ${bpm} BPM: ${on.length} flashes`);
+}
 if (process.argv[3]) { // node test.mjs track.f32 map.bin : song map of a real track (mono 44.1 kHz float PCM) for the ?map= hook
   const { writeFileSync } = await import('fs'), b = readFileSync(process.argv[2]);
   sa.songMap(sa.spectro(new Float32Array(b.buffer, b.byteOffset, b.length >> 2)), 1); writeFileSync(process.argv[3], SD);

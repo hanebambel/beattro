@@ -31,15 +31,20 @@ const O=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 const pc=document.createElement('canvas');pc.width=192;pc.height=108;const px2=pc.getContext('2d'),PD=px2.createImageData(192,108);PD.data.fill(255);
 // resolution as an effect: the chunky pixel scenes (plasma, voxel landscape) step through four resolutions and back, every 8 beats (every 3 s where there is no beat)
 const rl=()=>[0,1,2,3,2,1][((quiet||!beats?t/3:beats/8)|0)%6];
-const MSG='BEATTRO ... ONE HTML FILE, NO ASSETS, EVERYTHING IS CODE ... DROP ANY MP3 OR MP4 AND WATCH IT MOVE ... SPACE = PAUSE   F = FULLSCREEN   O = OPEN FILE   N = NEXT SCENE   1-9, 0 = PICK SCENE   SHIFT + 1-9, 0 = MORE SCENES   R = RACE   W = RING WORLD   G = GLOW FOREST   D = DANCE   T = TITLE   B = LIGHT BIKES   J = JUMP AND RUN   S = ATTACK RUN   U = THE DIVE   M = MOOD (AUTO / PARTY / DARK / DISCO)   P = GLOW ON / OFF   Q = RESOLUTION (STEADY 60 FPS / 4K / 2.5K / 1080P / 720P)   H = ALL KEYS   I = FRAME RATE   , AND . = PICTURE EARLIER / LATER (SYNC)   K = LOOK (CHANGES WITH THE SCENES / NORMAL / SOLID / NEON / PSYCHEDELIC / HDR / CODE RAIN)   L = LOCK SCENE   ARROWS = STEP THROUGH ALL ... MEOW ... GREETINGS TO EVERYONE WHO EVER WATCHED A CRACKTRO LONGER THAN THE GAME ...      ';
+const MSG='BEATTRO ... ONE HTML FILE, NO ASSETS, EVERYTHING IS CODE ... DROP ANY MP3 OR MP4 AND WATCH IT MOVE ... SPACE = PAUSE   F = FULLSCREEN   O = OPEN FILE   N = NEXT SCENE   1-9, 0 = PICK SCENE   SHIFT + 1-9, 0 = MORE SCENES   R = RACE   W = RING WORLD   G = GLOW FOREST   D = DANCE   T = TITLE   B = LIGHT BIKES   J = JUMP AND RUN   S = ATTACK RUN   U = THE DIVE   M = MOOD (AUTO / PARTY / DARK / DISCO / TECHNO)   P = GLOW ON / OFF   Q = RESOLUTION (STEADY 60 FPS / 4K / 2.5K / 1080P / 720P)   H = ALL KEYS   I = FRAME RATE   , AND . = PICTURE EARLIER / LATER (SYNC)   K = LOOK (CHANGES WITH THE SCENES / NORMAL / SOLID / NEON / PSYCHEDELIC / HDR / CODE RAIN)   L = LOCK SCENE   ARROWS = STEP THROUGH ALL ... MEOW ... GREETINGS TO EVERYONE WHO EVER WATCHED A CRACKTRO LONGER THAN THE GAME ...      ';
 let W,H,D,ac,an,an2,w2,fd,beat=mkBeat(...BEAT),subBeat=mkBeat(...KICK),beats=0,hue=180,lvl=0,kick=0,fi=0,tt=+(/[?&]T=([\d.]+)/.exec(location.search)||[])[1]||0,last=0,pk=1e-3,sub=0,t=0,dt=0,F=1,R=1,row=-1,roll=0,ts=1;
 const FAKE=/fake/.test(location.search); // test hooks: ?fake = synthetic beat, ?rt=8 = start the race at second 8, ?T=60 = start the clock at 60 s, ?dur=309 = pretend the song is that long
 const dur=()=>sdu||an&&v.duration||FAKE&&+(/dur=([0-9.]+)/.exec(location.search)||[])[1]||300; // song length in s (the analysed length if there is one, so map columns and clock agree)
 const DARK=[1,4,7,12,17,18,19,21,22,23,25,30,31,37]; // scenes for the dark mood: mountains, oscilloscope, dot wave, voxels, julia, moire, sponge, city, ocean, black hole, cave, ring world, glow forest, the dive (same ponytail as CALM)
 const DISCO=[0,2,3,5,6,8,10,11,13,14,15,16,18,24,26,27,28,29,32,33],DQ=[3,5,16,18,26,29]; // the disco mood: tunnel, radial spectrum, dot sphere, plasma, wire cubes, copper bars, twister, vector balls, glenz, cat lattice, rotozoomer, metaballs, moire, cat choir, kaleidoscope, texture tunnel, kefrens, shadebobs, dance, title. DQ: its quiet parts (dot sphere, plasma, metaballs, moire, kaleidoscope, shadebobs). Same ponytail as CALM
+const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the techno mood: tunnel, radial spectrum, dot sphere, oscilloscope, wire cubes, dot wave, twister, glenz, moire, sponge, city, black hole, cave, texture tunnel, kefrens (plus race, light bikes and attack run, see pick()). TQ: its quiet parts. Same ponytail as CALM
+// Strobe limiter: flashes never start less than 0.34 s apart, so there are at most three in any second, whatever the tempo or the music asks for
+// (more than three flashes a second can trigger seizures in people with photosensitive epilepsy). Returns a function (time, wanted) > 1 = flash now.
+const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
+const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
 let lat=0,trim=0;try{trim=+localStorage.trim||0}catch(e){} // s: manual sync trim, + = picture later; the , and . keys change it in steps of 10 ms and it is remembered
-let es=0,ft=tt,MO=+(/mood=([012])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
+let es=0,ft=tt,MO=+(/mood=([0123])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,tc=0,tca=0,stb=0,sbx=.5,sbn=0,sbu=-99,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
 let cur=(+location.hash.slice(1)||1)-1,prev=-1,sw=tt-2,sb=0,bag=[],qbag=[]; // scene sequencer
 
 // Resolution switch (Q): steady 60 fps with a resolution that adapts (the default), or a fixed picture height: 4K, 2.5K, 1080p, 720p (RES; shaders run at
@@ -76,7 +81,7 @@ f.onchange=()=>load(f.files[0]);
 ui.onclick=c.onclick=go;
 ondragover=e=>e.preventDefault();
 ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
-onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%4;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){lkm=(lkm+1)%7;inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
+onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){lkm=(lkm+1)%7;inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
 v.onended=()=>ui.textContent='click / space to replay\n\nor drop another file';
 v.onerror=()=>{v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
 
@@ -1186,11 +1191,11 @@ async function analyse(file){
     songMap(E,1);sect(sdu=ab.duration);
     const tp=tempo(d,44100>>k),up=SEC.find(s=>s[1]>0);
     if(tp[3]>.1){BPM=tp[0];[T0,PAT]=phase(BPM,tp[1],tp[2],up?up[0]/SN*sdu:-1)} // a clear tempo
-    MO=BPM?BPM<100?1:BPM<=115?2:0:+(KD.filter(v=>v>=1).length<SN*.15);bag=[];qbag=[]; // slow, or hardly any kick drum: the dark mood. 100 to 115 BPM: disco
+    MO=BPM?BPM<100?1:BPM<=115?2:BPM>=130?3:0:+(KD.filter(v=>v>=1).length<SN*.15);bag=[];qbag=[]; // slow, or hardly any kick drum: the dark mood. 100 to 115 BPM: disco. From 130 BPM: techno
     m2.clearRect(0,0,512,512);for(let c=0;c<SN;c+=4)spoke(c,b=>SD[(b*SN+c)*4]/255); // once more, now with the final levels
     for(const[c,n]of SEC){const a=c/SN*TAU-PI/2;m2.strokeStyle=n>0?'#fff':'#48f';m2.beginPath();m2.moveTo(256+cos(a)*241,256+sin(a)*241);m2.lineTo(256+cos(a)*255,256+sin(a)*255);m2.stroke()}
     const ps=[...PAT].map(v=>v>.6?'X':v>.3?'x':'.').join(''),pl=[16,32,64].find(l=>ps==ps.slice(0,l).repeat(64/l)); // shown as long as it takes to repeat: 4, 8 or 16 beats
-    apr=1;sst=['','DARK MOOD   ','DISCO MOOD   '][MO]+(BPM?BPM.toFixed(1)+' BPM   ':'')+SEC.length+' SECTION CHANGES'+(BPM?'\nKICK '+ps.slice(0,pl):'');
+    apr=1;sst=['','DARK MOOD   ','DISCO MOOD   ','TECHNO MOOD   '][MO]+(BPM?BPM.toFixed(1)+' BPM   ':'')+SEC.length+' SECTION CHANGES'+(BPM?'\nKICK '+ps.slice(0,pl):'');
   }catch(e){console.warn('song analysis off:',e)}
   if(g==sgen&&!SOK){apr=-1;sst='WRITTEN LIVE AS IT PLAYS (LOOKING BACK)'}
 }
@@ -2318,7 +2323,7 @@ void main(){
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
 let view=c,POST=0,post=0,P3=0;
 if(gl){
-  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k;uniform int lk,l2;out vec4 o;
+  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
 vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
   vec2 d=q-.5;vec3 c,b=textureLod(X,q,2.).rgb*.4+textureLod(X,q,3.5).rgb*.3+textureLod(X,q,5.).rgb*.2+textureLod(X,q,6.5).rgb*.1;
@@ -2375,6 +2380,18 @@ void main(){
     vec2 gp=vec2(atan(v.x,.6)*8.+tf*.22,atan(v.y,length(vec2(v.x,.6)))*8.);gp.x+=.5*mod(floor(gp.y),2.);
     vec2 id=floor(gp);float hs=fract(sin(dot(vec2(mod(id.x,89.),id.y),vec2(127.1,311.7)))*43758.5);
     c+=step(.45,hs)*smoothstep(.16+.2*fract(hs*7.),.04,length(fract(gp)-.5+.2*vec2(fract(hs*13.)-.5,fract(hs*29.)-.5)))*mix(vec3(1,.85,.6),.5+.5*cos(6.283*(h+hs*3.+vec3(0,.33,.67))),.5)*(.1+.25*fract(hs*17.)+.06*k)*s2; // (not every mirror throws one, and they differ in size and strength)
+    // fog: every spot is the end of a beam that starts at the ball, and haze in the room makes the beam visible. Seen from here a beam is a thin cone from the
+    // ball to its spot, so this pixel walks outwards from the ball through the grid of spots (a third of a cell per step) and is lit by every spot whose cone it is in.
+    float rr=length(v),ps=atan(rr,.6);vec2 vh=v/max(rr,1e-4);vec3 bm=vec3(0);
+    for(int i=0;i<24;i++){
+      float a=ps+(float(i)+jt)*.042;if(a>1.25)break;
+      vec2 P=vh*.6*tan(a),g2=vec2(atan(P.x,.6)*8.+tf*.22,atan(P.y,length(vec2(P.x,.6)))*8.);float o2=.5*mod(floor(g2.y),2.);g2.x+=o2;
+      vec2 i2=floor(g2);float h2=fract(sin(dot(vec2(mod(i2.x,89.),i2.y),vec2(127.1,311.7)))*43758.5);if(h2<.45)continue;
+      vec2 gc=i2+.5-.2*vec2(fract(h2*13.)-.5,fract(h2*29.)-.5),cw=vec2(.6*tan((gc.x-o2-tf*.22)/8.),0);cw.y=tan(gc.y/8.)*length(vec2(cw.x,.6)); // where that spot is on the wall
+      float wr=(.16+.2*fract(h2*7.))/8.*(.36+dot(cw,cw))/.6;
+      bm=max(bm,mix(vec3(1,.85,.6),.5+.5*cos(6.283*(h+h2*3.+vec3(0,.33,.67))),.5)*fract(h2*17.)*fract(h2*17.)*smoothstep(wr,wr*.2,abs(cw.x*vh.y-cw.y*vh.x))*smoothstep(-.03,.03,dot(cw,vh)-rr));
+    }
+    c+=(bm*(.3+.7*exp(-rr*1.6))*(.65+.35*sin(v.x*6.+tf*.25+sin(v.y*5.-tf*.2)*1.5))*.75*hr+vec3(1,.8,.55)*exp(-rr*5.)*.05)*s2; // (the brightest spots have the clearest beams; the haze is uneven and drifts; a little glow around the ball)
     c=mix(c,vec3(.3,.27,.22),smoothstep(.0024,.001,abs(v.x))*step(0.,v.y)); // the string
     vec2 bv=v/.06;float b2=dot(bv,bv);
     if(b2<1.){ // the ball: small square mirrors. Each shows the part of the picture it happens to face and flashes when it faces one of three lamps
@@ -2383,6 +2400,16 @@ void main(){
       float sp=pow(max(dot(rf,vec3(.5,.5,.707)),0.),30.)+pow(max(dot(rf,vec3(-.69,.2,.69)),0.),30.)+pow(max(dot(rf,vec3(.1,-.6,.8)),0.),30.);
       c=mix(c,(textureLod(X,.5+rf.xy*.42,ml).rgb*1.4+.06+vec3(1,.93,.8)*sp*1.6)*(.3+.7*n.z)*smoothstep(.5,.4,max(tc.x,tc.y)),smoothstep(1.,.9,b2));
     }
+  }
+  if(tc>.002){ // the techno mood, arriving in two steps as tc goes from 0 to 1: fog first (f1), then the colours turn cold and hard (f2). The strobes only fire once it is all there.
+    float as=r.x/r.y,f1=smoothstep(0.,.6,tc),f2=smoothstep(.5,1.,tc),l=dot(c,vec3(.3,.5,.2));
+    c=mix(c,mix(vec3(l),c,.5)*vec3(.85,.97,1.12)*(.75+.5*l),f2); // steel colours: half the colour, the darks darker
+    // fog: three layers of the noise texture drifting against each other, thicker towards the floor. It has no light of its own: it shows what the scene around it
+    // shines into it (a wide blur of the frame), and what the strobe throws in. ponytail: the noise texture is the glow forest's (unit 4); without that scene, no fog.
+    vec2 fq=vec2(q.x*as,q.y);float n=texture(NZ,fq*vec2(.5,1.1)+vec2(tf*.011,tf*.003)).r*.5+texture(NZ,fq*vec2(1.3,3.1)-vec2(tf*.017,tf*.004)).r*.3+texture(NZ,fq*vec2(3.3,7.)+vec2(tf*.023,-tf*.006)).r*.2,dn=smoothstep(.36,.66,n)*(.35+.65*smoothstep(.85,0.,q.y)); // (wider than high: banks and wisps)
+    c=mix(c,textureLod(X,q,log2(r.y)-4.5).rgb*1.3+vec3(.035,.045,.065),dn*.6*f1);
+    float ld=length((q-vec2(sx,1.04))*vec2(as,1)); // the strobe: a lamp just above the top edge at sx. Its flash lights the fog around it and falls off with distance: never the whole frame white
+    c+=vec3(.86,.93,1)*sb*(exp(-ld*2.)*(.15+1.6*dn+.5*n)+exp(-ld*22.)*1.5);
   }
   o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da),1); // da: the dark mood has darker corners and more grain
 }`);
@@ -2398,7 +2425,8 @@ void main(){
     POST.draw=()=>{
       x.flush();
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick); // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
+      // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
     };
@@ -2439,8 +2467,8 @@ if(gl&&navigator.gpu&&(/[?&]hdr/.test(location.search)||/Chrome\//.test(navigato
 const shuf=a=>{for(let i=a.length;i>1;){const j=Math.random()*i--|0;[a[i],a[j]]=[a[j],a[i]]}return a}; // (a fair shuffle; sorting by random numbers is not)
 const pick=calm=>{
   const fill=a=>{shuf(a);if(a.at(-1)==cur)a.reverse();return a}; // a new bag holds every scene (the one on screen too, just not as the first to come out)
-  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
-  if(!qbag.length)qbag=fill((dc?DQ:DARK).filter(i=>SC[i]));
+  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
+  if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
 function next(n){
@@ -2452,12 +2480,16 @@ function next(n){
   const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
   sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY?48:big?32:rn<.25+.35*fa?8:16;
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
-  pl=look;alk=dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon). Code rain is a transition now and a look only on K
+  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
 const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore()};
 
+// Techno strobes: a lamp above the picture fires on the beat, but only in runs: through the last bar of every four, and for two bars after the song steps up
+// (there it replaces the white flash of the other moods). Each flash comes from the next of four lamps. Never more than three a second (mkStrobe),
+// none for people who asked their system for reduced motion, none before the fog is in. b: the beat number. (The limiter runs on the wall clock, not the song's.)
+const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
 function frame(now){
   requestAnimationFrame(frame);
   const pf0=performance.now();fa+=(now-last)/1e3;fn++;fw=max(fw,now-last);
@@ -2470,7 +2502,7 @@ function frame(now){
     }
     if(inf>1e9&&/bench/.test(location.search))console.log(`BENCH${XDR&&XDR.on?' HDR':''} ${fps.toFixed(1)} fps ${W}x${H} lv${lv} s${cur+1} worst ${wst.toFixed(0)} ms js ${(jsa/max(1,jsn)).toFixed(2)} ms${t-sw<tl?' TR'+tk:''}`);jsa=jsn=0; // test hook ?bench: read by the scratch benchmark
   }
-  dt=min(.1,(now-last)/1e3);last=now;
+  dt=min(.1,(now-last)/1e3);last=now;stb*=Math.exp(-dt*14); // (a strobe flash is over in a tenth of a second)
   document.body.classList.toggle('p',FAKE||!v.paused&&!v.ended);
   // clock: own smooth clock, snapped to the media time so pause/seek stay in sync; free-running before a file plays
   live=!an||!v.paused;
@@ -2512,12 +2544,12 @@ function frame(now){
     const st=floor(bp*4);
     if(live&&st!=lst){
       if(st==lst+1&&!quiet&&PAT[st&63]>.3)kick=max(kick,PAT[st&63]); // softer kicks pulse softer
-      if(st%4==0){beats=st/4;if(st==lst+1&&beats%16==0)hue+=67} // colours change every 4 bars, on the bar line
+      if(st%4==0){beats=st/4;if(st==lst+1&&beats%16==0)hue+=67;if(st==lst+1&&!quiet)flash(beats)} // colours change every 4 bars, on the bar line
       lst=st;
     }
   }else if(bh&&!quiet){ // no tempo known: count the detected beats
     kick=1;
-    if(++beats%16==0)hue+=67;
+    if(++beats%16==0)hue+=67;flash(beats);
   }
   // camera: every scene gets the same flowing arc over its 8 bars (16 s without a tempo), no jumps anywhere: push in over the first half, sway like a
   // pendulum, pump with the kick pattern in the third quarter, pull back out in the last, and (every other scene) one full roll into the transition.
@@ -2527,8 +2559,9 @@ function frame(now){
   ma+=((scn%3==1&&u>.4&&u<.8?1:0)-ma)*min(1,dt*1.5);
   // mood: slow songs (under ~100 BPM) and songs without a kick drum switch to the dark mood: steel-blue film look, vignette, grain, drifting haze, black bars,
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
-  // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. M cycles auto / party / dark / disco.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*.6);look=lkm>5?alk:lkm;if(lkm<6)pl=look;
+  // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
+  // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2)); // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)look=lkm>5?alk:lkm;if(lkm<6)pl=look;
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly
@@ -2552,7 +2585,7 @@ function frame(now){
   psc=sc;
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
     const up=arm[1]>0,a=min(1,abs(arm[1]));
-    if(up&&t>=arm[0]){bang=a;hue+=67;if(a>.6)sub=max(sub,a)}
+    if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6)sub=max(sub,a)}
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
@@ -2574,7 +2607,7 @@ function frame(now){
   if(cub&&!(p<1&&prev>=0)){x.copy(NEW,MAIN);cub=0} // the cube has landed: the new scene moves from its own target to the frame, trails and all
   x.fillStyle='rgba(0,0,10,.4)';x.fillRect(0,0,W,H);
   x.globalCompositeOperation='lighter';
-  x.fillStyle=hs(hue,(kick*.07+bang*.5)*(1-.7*dk),50+bang*40);x.fillRect(0,0,W,H);
+  x.fillStyle=hs(hue,(kick*.07+bang*.5*(1-tca))*(1-.7*dk),50+bang*40*(1-tca));x.fillRect(0,0,W,H);
   roll=sin(t*.4)*.15+cr;x.translate(W/2,H/2);x.rotate(roll);
   R=min(W,H)/2;F=R*1.6*(1+kick*.04);
 
@@ -2667,7 +2700,7 @@ function frame(now){
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE'],
-      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO'][MO]+')','PARTY','DARK','DISCO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
+      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;
