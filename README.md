@@ -8,6 +8,15 @@ world built from the song itself, a dance floor and more.
 No server, no install, no assets: everything is code in `index.html`
 (about 240 KB).
 
+<img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
+
+| | |
+|---|---|
+| <img src="screenshots/dance-floor.jpg" alt="Dance floor scene"> | <img src="screenshots/ring-world.jpg" alt="Ring world scene"> |
+
+The title, the dance floor and the ring world in one of the retro tube looks
+(`K`): hold-and-modify colours at 768 x 576, interlaced, on a simulated tube.
+
 ## Try it
 
 1. Download `index.html` and open it in a browser.
