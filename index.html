@@ -40,6 +40,10 @@ const DISCO=[0,2,3,5,6,8,10,11,13,14,15,16,18,24,26,27,28,29,32,33],DQ=[3,5,16,1
 const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the techno mood: tunnel, radial spectrum, dot sphere, oscilloscope, wire cubes, dot wave, twister, glenz, moire, sponge, city, black hole, cave, texture tunnel, kefrens (plus race, light bikes and attack run, see pick()). TQ: its quiet parts. Same ponytail as CALM
 // Strobe limiter: flashes never start less than 0.34 s apart, so there are at most three in any second, whatever the tempo or the music asks for
 // (more than three flashes a second can trigger seizures in people with photosensitive epilepsy). Returns a function (time, wanted) > 1 = flash now.
+// The three retro tube looks (retro.js). glow: the share of its light a phosphor still gives d seconds on (tau: its time constant). In the interlaced looks a line
+// is only drawn every other frame and lives on its glow in between: there it never loses more than 15 % per frame, however slow the frames come
+// (lines pulsing deeper than that would flicker), and in both looks a quarter of a second without a frame clears the tube.
+const RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
@@ -50,12 +54,13 @@ let cur=(+location.hash.slice(1)||1)-1,prev=-1,sw=tt-2,sb=0,bag=[],qbag=[]; // s
 // Resolution switch (Q): steady 60 fps with a resolution that adapts (the default), or a fixed picture height: 4K, 2.5K, 1080p, 720p (RES; shaders run at
 // that full size too, whatever the frame rate; never more than the screen has). The steady mode: QL are the steps (share of the pixels); the frame rate is checked once a second, a drop goes one step down at once, five good seconds
 // try one step up, and a step that just failed is left alone for 30 s. I shows frame rate, resolution and step.
-const LOOKS=()=>['NORMAL','SOLID','NEON','PSYCHEDELIC',XDR?'HDR (REAL: BRIGHTER THAN WHITE)':'HDR STYLE'+(P3?' (WIDE COLOUR)':''),'CODE RAIN'];
+const LOOKS=()=>['NORMAL','SOLID','NEON','PSYCHEDELIC',XDR?'HDR (REAL: BRIGHTER THAN WHITE)':'HDR STYLE'+(P3?' (WIDE COLOUR)':''),'CODE RAIN','RETRO TUBE OCS (HAM6, 384 X 288)','RETRO TUBE OCS INTERLACED (HAM6, 384 X 576)','RETRO TUBE AGA (HAM8, 768 X 576, INTERLACED)'];
 const QL=[1,.8,.64,.5,.4,.3,.22,.16],RES=[2160,1440,1080,720],RN=['4K','2.5K','1080P','720P'];
-let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-6])/.exec(location.search)||[,6])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
+let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-9])/.exec(location.search)||[,9])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
 let GX=0,MAIN=0,OLD=0,NEW=0,HIS=0,SCR=0; // the WebGL drawing layer and its render targets (gx.js); without WebGL2 everything stays on the 2D canvas
 const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million pixels) times the current step; measured: beyond that even an M3 Max drops frames in transitions
-  D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/innerWidth/innerHeight))*Math.sqrt(QL[lv]);W=c.width=innerWidth*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
+  const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto`:''; // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
+  D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
 onresize=size;size();ui.textContent=IDLE;
 
 function load(file){
@@ -81,7 +86,7 @@ f.onchange=()=>load(f.files[0]);
 ui.onclick=c.onclick=go;
 ondragover=e=>e.preventDefault();
 ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
-onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){lkm=(lkm+1)%7;inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
+onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){const w=RTL(lkm);lkm=(lkm+1)%10;if(w!=RTL(lkm))size();inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
 v.onended=()=>ui.textContent='click / space to replay\n\nor drop another file';
 v.onerror=()=>{v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
 
@@ -495,7 +500,7 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
       // render targets
       use(T){if(T!=tgt){flush();tgt=T}},
       copy(A,B){flush();gl.bindFramebuffer(gl.READ_FRAMEBUFFER,A.fb);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,B.fb);gl.blitFramebuffer(0,0,A.w,A.h,0,0,B.w,B.h,gl.COLOR_BUFFER_BIT,gl.LINEAR);gl.bindFramebuffer(gl.FRAMEBUFFER,null)},
-      lo(w,h,depth){const k=w+'x'+h+depth;let T=pool.get(k);if(!T){if(pool.size>23){const o=pool.keys().next().value;del(pool.get(o));pool.delete(o)}pool.set(k,T=mkT(w,h,depth))}return T}, // at most 24 are kept // scratch targets for the shader scenes (they render small and are drawn enlarged), kept per size
+      lo(w,h,depth,tag=''){const k=w+'x'+h+depth+tag;let T=pool.get(k);if(!T){if(pool.size>23){const o=pool.keys().next().value;del(pool.get(o));pool.delete(o)}pool.set(k,T=mkT(w,h,depth))}return T}, // at most 24 are kept // scratch targets for the shader scenes (they render small and are drawn enlarged), kept per size
       at:[atlas,(CW+2)/AC.width,CH/AC.height,ADV*FS/AC.width], // the sheet of glyphs: texture, a glyph's pitch across and down, its width
       resize(){flush();[MAIN,OLD,NEW,HIS,...pool.values()].map(del);pool.clear();ctex=0;MAIN=mkT(W,H);OLD=mkT(W>>1,H>>1);NEW=mkT(W,H);HIS=mkT(W,H);SCR={fb:null,w:W,h:H}; // SCR: the screen itself; HIS: the previous frame, for the motion blur of the dark mood
         tgt=MAIN;gc.width=W;gc.height=H},
@@ -2362,9 +2367,9 @@ void main(){
 }
 // ---- post: the finished frame (the render target MAIN) goes through one last pass onto the screen: everything bright glows
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
-let view=c,POST=0,post=0,P3=0;
+let view=c,POST=0,post=0,P3=0,RETRO=0;
 if(gl){
-  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp;uniform int lk,l2;out vec4 o;
+  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp,gn;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
 vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
   vec2 d=q-.5;vec3 c,b=textureLod(X,q,2.).rgb*.4+textureLod(X,q,3.5).rgb*.3+textureLod(X,q,5.).rgb*.2+textureLod(X,q,6.5).rgb*.1;
@@ -2464,7 +2469,7 @@ void main(){
     c+=(max(la-.25,0.)*1.5*laser(q,vec2(.16,.62),as,-.55+.5*sin(u1),fo,nb,fg)+max(la.gbr-.25,0.)*1.5*laser(q,vec2(.84,.62),as,3.1416+.55-.5*sin(u1+.6),fo,nb,fg)
       +max(la.brg-.25,0.)*1.5*laser(q,vec2(.5,.8),as,-1.5708+.6*sin(u1*.8+1.),fo*1.3,nb+2.,fg))*(.5+.2*k)*f2;
   }
-  o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da),1); // da: the dark mood has darker corners and more grain
+  o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da)*gn,1); // da: the dark mood has darker corners and more grain
 }`);
   gl.attachShader(pp,VS);gl.attachShader(pp,pf);gl.linkProgram(pp);
   if(!gl.getProgramParameter(pp,gl.LINK_STATUS))console.warn('shader scene off:',gl.getProgramInfoLog(pp),gl.getShaderInfoLog(pf));
@@ -2477,14 +2482,77 @@ void main(){
     POST=on=>{post=on}; // P: the effects on / off (the frame still goes through this pass, it is what puts it on screen)
     POST.draw=()=>{
       x.flush();
+      // the retro tube (retro.js) takes the finished frame as its picture: then this pass draws into a target of its own instead of onto the screen. ra: how far that look is in
+      const ra=post&&RETRO?(RTL(look)?lf:0)+(RTL(pl)&&lf<1?1-lf:0):0,F=ra>0?x.lo(W,H,0,'f'):0;
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
+      gl.bindFramebuffer(gl.FRAMEBUFFER,F?F.fb:null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1f(U('gn'),1-ra);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR||RTL(l)?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
       // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
+      if(F)RETRO(F,ra,(RTL(look)?look:pl)-6);
     };
     POST(1);
   }
+}
+// ---- looks "retro tube": the finished frame as a home computer of the late eighties or early nineties would have put it on a tube monitor.
+// Two small passes behind the post pass. Pass A makes the computer's picture: the frame at the mode's size (with the look chosen on K the frame is 4:3
+// already, core.js; when the look only comes with a scene, the middle 4:3 of it), in hold-and-modify colours: along a line a pixel can only change one of
+// red, green and blue of the pixel before it, or take one of a few fixed colours, so a sharp edge needs up to three pixels to arrive and wears a fringe
+// of wrong colours. The older mode has 16 steps per colour and 16 fixed colours (here a grey ramp), the later one 64 steps and 64 fixed colours (here
+// a 4 x 4 x 4 cube) at twice the size: its fringes are much finer. The same pass keeps the tube's afterglow: what was bright fades out over a few frames.
+// The later mode and the tall version of the older one are interlaced: every frame only every other line is drawn, the lines in between live on their afterglow. Things that move get a comb
+// edge and fine lines shimmer. How far a waiting line may dim is capped (glow() in core.js), and people who asked for reduced motion get whole frames.
+// Pass B is the tube: bulging glass, scan lines whose beam gets wider where it is brighter, stripes of red, green and blue phosphor, rounded
+// corners, darker towards the edge. No rolling, no hum bars.
+if(gl&&POST){
+  const MD=[[384,288,15,0],[384,576,15,1],[768,576,63,1]], // per look: width, height (the PAL frame of 768 x 576, or half of it each way), steps per colour - 1, interlaced. The middle one has pixels twice as wide as high
+    TAU3=[.12,.15,.08]; // s: how long red, green and blue glow on (the tail turns a little yellow-green)
+  const mk=src=>{const p=gl.createProgram(),f=cmp(gl.FRAGMENT_SHADER,src),L={};gl.attachShader(p,VS);gl.attachShader(p,f);gl.linkProgram(p);
+    if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.warn('shader scene off: retro look',gl.getProgramInfoLog(p),gl.getShaderInfoLog(f));return 0}
+    p.U=n=>L[n]??=gl.getUniformLocation(p,n);return p};
+  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;out vec4 o;
+vec3 S(float i,float y){return floor(textureLod(X,.5+(vec2((i+.5)/r.x,y)-.5)*cp,ld).rgb*qn+.5)/qn;} // the frame at pixel i of this line, in the mode's steps per colour
+void main(){
+  vec2 p=floor(gl_FragCoord.xy);float y=(p.y+.5)/r.y;vec3 pv=max(texelFetch(PV,ivec2(p),0).rgb*dk-.004,0.); // what still glows here (the small step down: 8 bits would otherwise never quite reach black)
+  if(il>=0.&&mod(p.y,2.)!=il){o=vec4(pv,1);return;} // interlaced: this line belongs to the other field, it is not drawn this frame
+  vec3 s=S(max(p.x-4.,0.),y); // ponytail: the real thing carries its state along the whole line; here every pixel replays the four before it, which is the same wherever the picture held still for four pixels
+  for(int i=3;i>=0;i--){
+    vec3 g=S(max(p.x-float(i),0.),y),e=abs(s-g),m=s,gy=qn<20.?vec3(floor(dot(g,vec3(.3,.5,.2))*15.+.5)/15.):floor(g*3.+.5)/3.;
+    if(e.r>=e.g&&e.r>=e.b)m.r=g.r;else if(e.g>=e.b)m.g=g.g;else m.b=g.b; // modify: the colour that is furthest off
+    s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
+  }
+  o=vec4(max(s,pv),1);
+}`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a;out vec4 o;
+vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
+void main(){
+  vec2 q=gl_FragCoord.xy/r;float as=r.x/r.y,tw=min(1.,1.3333/as),th=min(1.,as/1.3333); // the tube: 4:3, as big as fits
+  vec2 u=(q-.5)/vec2(tw,th)*2.;u*=1.+vec2(.04,.055)*u.yx*u.yx; // the glass bulges
+  vec3 c=vec3(0);float rr=length(max(abs(u)-.93,0.));
+  if(rr<.07){
+    vec2 g=(u*.5+.5)*pr-.5,i=floor(g),f=g-i;float fx=f.x*f.x*(3.-2.*f.x),ppl=r.y*th/pr.y,sd=smoothstep(1.6,3.6,ppl); // sd: with too few screen pixels per line there are no scan lines, they would only make moire
+    vec3 l0=mix(px(i),px(i+vec2(1,0)),fx),l1=mix(px(i+vec2(0,1)),px(i+vec2(1,1)),fx),
+      w0=.26+.2*l0,w1=.26+.2*l1; // the beam is wider where it is brighter
+    c=mix(mix(l0,l1,f.y),(l0*exp(-f.y*f.y/(2.*w0*w0))+l1*exp(-(1.-f.y)*(1.-f.y)/(2.*w1*w1)))*1.25,sd);
+    // the phosphor: triads of a red, a green and a blue strip, each strip ms canvas pixels wide (two on a 4K screen, so they survive the browser's scaling), cut into
+    // slots by dark gaps that sit half a slot lower in every other triad. Each spot of the glass can only shine in its own colour: that is the sub-pixel pattern of a tube.
+    float ms=max(1.,floor(r.y/1100.+.5));vec2 mp=floor(gl_FragCoord.xy/ms);vec3 mk=vec3(.45);mk[int(mod(mp.x,3.))]=2.1; // (adds up to the same light as no mask up to about two thirds of full brightness; above that the lit strip is at its limit, so full white comes out about a third darker)
+    c*=mk*(mod(mp.y+3.*mod(floor(mp.x/3.),2.),6.)<1.?.5:1.1);
+    c=sqrt(c)*(1.-.22*dot(u,u))*smoothstep(.07,.045,rr)+.012;
+  }
+  o=vec4(mix(texture(X,q).rgb,c,a),1);
+}`);
+  let n=0;const lt=MD.map(()=>0);
+  if(pa&&pb)RETRO=(F,a,m)=>{ // F: the target the post pass has just drawn the frame into; a: how far the look is in (it fades with the scene change); m: which of the modes
+    const[RW,RH,qn,il]=MD[m],fld=il&&!matchMedia('(prefers-reduced-motion: reduce)').matches,A=x.lo(RW,RH,0,'r'+(n&1)),B=x.lo(RW,RH,0,'r'+(++n&1)),d=max(0,(last-lt[m])/1e3),tw=min(1,4/3*H/W),th=min(1,W/H*3/4);lt[m]=last;
+    gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D); // (unit 7 has the sampler with the blurred copies; the post pass binds its own texture there again next frame)
+    gl.activeTexture(gl.TEXTURE14);gl.bindTexture(gl.TEXTURE_2D,B.tex);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,A.fb);gl.viewport(0,0,RW,RH);gl.useProgram(pa);gl.uniform1i(pa.U('X'),7);gl.uniform1i(pa.U('PV'),14);gl.uniform2f(pa.U('r'),RW,RH);gl.uniform2f(pa.U('cp'),tw,th);
+    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindTexture(gl.TEXTURE_2D,A.tex);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);
+    gl.drawArrays(gl.TRIANGLES,0,3);gl.activeTexture(gl.TEXTURE0);
+  };
 }
 // ---- real HDR (look "HDR", where the browser can do it): WebGL has no way yet to hand the browser pixels brighter than white, WebGPU has. So the finished
 // frame is copied from the WebGL canvas into a WebGPU canvas lying on top of it, configured for extended range, and one small pass turns the brightest
@@ -2614,7 +2682,7 @@ function frame(now){
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
   // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
   // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>5?alk:lkm;if(lkm<6)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>8?alk:lkm;if(lkm<9)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly
@@ -2753,7 +2821,7 @@ function frame(now){
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
-      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
+      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;

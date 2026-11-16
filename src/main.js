@@ -97,7 +97,7 @@ function frame(now){
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
   // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
   // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>5?alk:lkm;if(lkm<6)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>8?alk:lkm;if(lkm<9)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly
@@ -236,7 +236,7 @@ function frame(now){
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
-      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
+      ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;

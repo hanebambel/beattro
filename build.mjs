@@ -35,6 +35,7 @@ const FILES = [ // in this order; scene files push themselves onto the scene lis
   'scene-39-dance-floor.js',
   'transitions.js',
   'post.js',
+  'retro.js',
   'hdr.js',
   'main.js',
 ];

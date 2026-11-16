@@ -130,7 +130,7 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
       // render targets
       use(T){if(T!=tgt){flush();tgt=T}},
       copy(A,B){flush();gl.bindFramebuffer(gl.READ_FRAMEBUFFER,A.fb);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,B.fb);gl.blitFramebuffer(0,0,A.w,A.h,0,0,B.w,B.h,gl.COLOR_BUFFER_BIT,gl.LINEAR);gl.bindFramebuffer(gl.FRAMEBUFFER,null)},
-      lo(w,h,depth){const k=w+'x'+h+depth;let T=pool.get(k);if(!T){if(pool.size>23){const o=pool.keys().next().value;del(pool.get(o));pool.delete(o)}pool.set(k,T=mkT(w,h,depth))}return T}, // at most 24 are kept // scratch targets for the shader scenes (they render small and are drawn enlarged), kept per size
+      lo(w,h,depth,tag=''){const k=w+'x'+h+depth+tag;let T=pool.get(k);if(!T){if(pool.size>23){const o=pool.keys().next().value;del(pool.get(o));pool.delete(o)}pool.set(k,T=mkT(w,h,depth))}return T}, // at most 24 are kept // scratch targets for the shader scenes (they render small and are drawn enlarged), kept per size
       at:[atlas,(CW+2)/AC.width,CH/AC.height,ADV*FS/AC.width], // the sheet of glyphs: texture, a glyph's pitch across and down, its width
       resize(){flush();[MAIN,OLD,NEW,HIS,...pool.values()].map(del);pool.clear();ctex=0;MAIN=mkT(W,H);OLD=mkT(W>>1,H>>1);NEW=mkT(W,H);HIS=mkT(W,H);SCR={fb:null,w:W,h:H}; // SCR: the screen itself; HIS: the previous frame, for the motion blur of the dark mood
         tgt=MAIN;gc.width=W;gc.height=H},

@@ -78,4 +78,11 @@ if (process.argv[3]) { // node test.mjs track.f32 map.bin : song map of a real t
   const up = sa.sect(du).find(s => s[1] > 0), [t0, pt] = sa.phase(tp[0], tp[1], tp[2], up ? up[0] / SN * du : -1);
   console.log(`${tp[0].toFixed(3)} BPM, pattern starts at ${t0.toFixed(3)} s, sharpness ${tp[3].toFixed(2)}\n${[...pt].map((v, i) => (i % 16 ? '' : ' | ') + (i % 4 ? '' : ' ') + (v > .6 ? 'X' : v > .3 ? 'x' : '.')).join('')}`);
 }
+// interlaced retro tube: a line that waits for its field must never dim by more than 15 % in one frame, at any frame rate; a long gap clears the tube
+const glow = eval(html.match(/glow=(\(d,tau,il\)=>.*?);\n/)[1]);
+for (const tau of [.05, .08, .12, .15]) { for (let d = 1 / 144; d <= .25; d += .002) assert(glow(d, tau, 1) >= .85, `glow ${d} ${tau}`); assert.equal(glow(.3, tau, 1), 0); assert.equal(glow(.3, tau, 0), 0); }
+assert(Math.abs(glow(1 / 60, .12, 0) - .87) < .01); assert.equal(glow(NaN, .12, 1), 0);
+// looks: the K key steps through them plus "with the scenes"; the four places that know how many there are must agree (a wrong default boots the page in the last look)
+const lm = +html.match(/lkm=\(lkm\+1\)%(\d+)/)[1];
+for (const q of [`look=([0-${lm - 1}])`, `||[,${lm - 1}])[1]`, `look=lkm>${lm - 2}?alk:lkm`, `if(lkm<${lm - 1})pl=look`]) assert(html.includes(q), `look count: ${q}`);
 console.log('ok: 20 beats in 10 s @ 120 BPM; kick detector ignores the bass line, catches 20/20 kicks; song map finds the tone; sections, tempo and kick pattern found');
