@@ -2,7 +2,7 @@
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
 let view=c,POST=0,post=0,P3=0;
 if(gl){
-  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx;uniform int lk,l2;out vec4 o;
+  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
 vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
   vec2 d=q-.5;vec3 c,b=textureLod(X,q,2.).rgb*.4+textureLod(X,q,3.5).rgb*.3+textureLod(X,q,5.).rgb*.2+textureLod(X,q,6.5).rgb*.1;
@@ -41,6 +41,12 @@ vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
     return c*(.8+.2*sin(q.y*1700.));
   }
   return lk<0?c:c+max(b-.05,0.)*.9*(1.-min(1.,dot(c,vec3(.3,.5,.2)))); // the glow spreads into the dark around bright things; what is bright already stays as it is
+}
+// One laser head at e throwing a fan of nb thin beams around the direction ce, sp apart; fg = how much fog there is at this pixel. A beam is a line through the head:
+// thin where it leaves, a little wider the further it has come (it is coming towards us), with a soft glow around it, and brighter where it crosses a bank of fog.
+float laser(vec2 q,vec2 e,float as,float ce,float sp,float nb,float fg){
+  vec2 v=(q-e)*vec2(as,1);float r=length(v),d=mod(atan(v.y,v.x)-ce+3.1416,6.2832)-3.1416,pp=abs(mod(d+sp*.5,sp)-sp*.5)*r,w=.0011+.0035*r;
+  return (exp(-pp*pp/(w*w))+.22*exp(-pp/(w*5.)))*smoothstep(sp*nb*.5+sp*.1,sp*nb*.5-sp*.1,abs(d))*(.18+2.*fg)+exp(-r*70.)*.8;
 }
 vec3 hl(vec2 p,float l,vec3 b){return max(textureLod(X,p,l).rgb-b,0.);} // what is bright enough to throw a star: brighter than its surroundings by a good bit
 void main(){
@@ -89,6 +95,12 @@ void main(){
     c=mix(c,textureLod(X,q,log2(r.y)-4.5).rgb*1.3+vec3(.035,.045,.065),dn*.6*f1);
     float ld=length((q-vec2(sx,1.04))*vec2(as,1)); // the strobe: a lamp just above the top edge at sx. Its flash lights the fog around it and falls off with distance: never the whole frame white
     c+=vec3(.86,.93,1)*sb*(exp(-ld*2.)*(.15+1.6*dn+.5*n)+exp(-ld*22.)*1.5);
+    // laser show: three heads at the back of the room (left, right, top centre) throw fans of beams through the fog towards us. The fans swing and open and close slowly
+    // with the flow of the song; every four bars (lp) they change their figure and colours. They come on last (f2).
+    float u1=tf*.19+lp*2.1,u2=tf*.13+lp*1.3,fo=.035+.05*(.5+.5*sin(u2)),nb=5.+2.*mod(lp,3.),fg=dn+.12*n;
+    vec3 la=.5+.5*cos(6.283*(lp*.21+vec3(.33,0,.67))); // one saturated colour per figure, its two neighbours for the other heads
+    c+=(max(la-.25,0.)*1.5*laser(q,vec2(.16,.62),as,-.55+.5*sin(u1),fo,nb,fg)+max(la.gbr-.25,0.)*1.5*laser(q,vec2(.84,.62),as,3.1416+.55-.5*sin(u1+.6),fo,nb,fg)
+      +max(la.brg-.25,0.)*1.5*laser(q,vec2(.5,.8),as,-1.5708+.6*sin(u1*.8+1.),fo*1.3,nb+2.,fg))*(.5+.2*k)*f2;
   }
   o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da),1); // da: the dark mood has darker corners and more grain
 }`);
@@ -104,7 +116,7 @@ void main(){
     POST.draw=()=>{
       x.flush();
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
       // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);

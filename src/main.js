@@ -3,7 +3,7 @@
 const shuf=a=>{for(let i=a.length;i>1;){const j=Math.random()*i--|0;[a[i],a[j]]=[a[j],a[i]]}return a}; // (a fair shuffle; sorting by random numbers is not)
 const pick=calm=>{
   const fill=a=>{shuf(a);if(a.at(-1)==cur)a.reverse();return a}; // a new bag holds every scene (the one on screen too, just not as the first to come out)
-  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
+  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i)||i==FLOOR:dk<.5||DARK.includes(i)));
   if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
@@ -235,7 +235,7 @@ function frame(now){
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
-      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE'],
+      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],

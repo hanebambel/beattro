@@ -1,7 +1,7 @@
 // ---- 33 silhouette dance: three black cat silhouettes dance in front of a slow sunburst, each trailed by coloured echoes of its last moves
 // (flat shapes, hard contrast and motion echoes in the spirit of early-90s Amiga dance demos; the dancer and its moves are made up here).
 // A new pose on every beat; where the song has no beat, they only sway from pose to pose.
-let DANCE=-1;
+let DANCE=-1,CATS=0; // CATS: the dancers, for the dance floor (scene 39) too
 {
   // pose: hip sway, lean, left arm (shoulder, elbow), right arm, left leg, right leg, head tilt, (bounce); angles from "hanging down"
   const PO=[[0,0,2.6,.3,2.6,.3,.15,.15,0],[.6,.15,2.9,.2,.6,1.4,.1,.5,.2],[-.6,-.15,.6,1.4,2.9,.2,.5,.1,-.2],[0,0,1.57,0,1.57,0,.5,.5,0],[.4,-.2,2.3,0,.9,.9,0,.6,-.25],[-.3,.25,1.2,1.2,1.2,1.2,.7,.7,.15]],
@@ -20,11 +20,15 @@ let DANCE=-1;
     x.lineWidth=.04*sc;x.beginPath();x.moveTo(hx,hy);x.quadraticCurveTo(hx-.3*sc,hy+.1*sc,hx-(.32-sin(t*3)*.05)*sc,hy-(.22-g(0)*.1)*sc);x.stroke(); // tail
     if(eyes){x.fillStyle=eyes;for(const sg of[-1,1]){x.beginPath();x.arc(ex+sg*cos(a1)*.05*sc,ey+sg*sin(a1)*.05*sc,.022*sc,0,TAU);x.fill()}}
   };
-  DANCE=SC.push(()=>{
-    const s=hypot(W,H),sc=R*.75,ga=x.globalAlpha,bt=quiet||!beats?t/2|0:beats,e=min(1,dt*(quiet?3:14));
+  const step=()=>{ // one frame of dancing: towards the pose of this beat, and into the history for the echoes
+    const bt=quiet||!beats?t/2|0:beats,e=min(1,dt*(quiet?3:14));
     if(bt!=lb){lb=bt;pi=(pi+1+bt*7%4)%6}
     for(let i=0;i<9;i++)cp[i]+=(PO[pi][i]-cp[i])*e;cp[9]=kick*.05;
     hq=hq+1&63;HP.set(cp,hq*10);
+  };
+  CATS={cat,step,at:d=>(hq-d&63)*10};
+  DANCE=SC.push(()=>{
+    const s=hypot(W,H),sc=R*.75,ga=x.globalAlpha;step();
     x.globalCompositeOperation='source-over';
     for(let i=0;i<12;i++){x.fillStyle=hs(hue+(i&1)*25,1,(i&1?26:38)+kick*6);x.beginPath();x.moveTo(0,0);x.arc(0,0,s,i*TAU/12+t*.15,(i+1)*TAU/12+t*.15+.01);x.fill()}
     for(const[cx,k,dl]of[[-R*1.05,.6,8],[R*1.05,.6,16],[0,1,0]]){

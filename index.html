@@ -81,7 +81,7 @@ f.onchange=()=>load(f.files[0]);
 ui.onclick=c.onclick=go;
 ondragover=e=>e.preventDefault();
 ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
-onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){lkm=(lkm+1)%7;inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
+onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){lkm=(lkm+1)%7;inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
 v.onended=()=>ui.textContent='click / space to replay\n\nor drop another file';
 v.onerror=()=>{v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
 
@@ -1483,7 +1483,7 @@ void main(){
 // ---- 33 silhouette dance: three black cat silhouettes dance in front of a slow sunburst, each trailed by coloured echoes of its last moves
 // (flat shapes, hard contrast and motion echoes in the spirit of early-90s Amiga dance demos; the dancer and its moves are made up here).
 // A new pose on every beat; where the song has no beat, they only sway from pose to pose.
-let DANCE=-1;
+let DANCE=-1,CATS=0; // CATS: the dancers, for the dance floor (scene 39) too
 {
   // pose: hip sway, lean, left arm (shoulder, elbow), right arm, left leg, right leg, head tilt, (bounce); angles from "hanging down"
   const PO=[[0,0,2.6,.3,2.6,.3,.15,.15,0],[.6,.15,2.9,.2,.6,1.4,.1,.5,.2],[-.6,-.15,.6,1.4,2.9,.2,.5,.1,-.2],[0,0,1.57,0,1.57,0,.5,.5,0],[.4,-.2,2.3,0,.9,.9,0,.6,-.25],[-.3,.25,1.2,1.2,1.2,1.2,.7,.7,.15]],
@@ -1502,11 +1502,15 @@ let DANCE=-1;
     x.lineWidth=.04*sc;x.beginPath();x.moveTo(hx,hy);x.quadraticCurveTo(hx-.3*sc,hy+.1*sc,hx-(.32-sin(t*3)*.05)*sc,hy-(.22-g(0)*.1)*sc);x.stroke(); // tail
     if(eyes){x.fillStyle=eyes;for(const sg of[-1,1]){x.beginPath();x.arc(ex+sg*cos(a1)*.05*sc,ey+sg*sin(a1)*.05*sc,.022*sc,0,TAU);x.fill()}}
   };
-  DANCE=SC.push(()=>{
-    const s=hypot(W,H),sc=R*.75,ga=x.globalAlpha,bt=quiet||!beats?t/2|0:beats,e=min(1,dt*(quiet?3:14));
+  const step=()=>{ // one frame of dancing: towards the pose of this beat, and into the history for the echoes
+    const bt=quiet||!beats?t/2|0:beats,e=min(1,dt*(quiet?3:14));
     if(bt!=lb){lb=bt;pi=(pi+1+bt*7%4)%6}
     for(let i=0;i<9;i++)cp[i]+=(PO[pi][i]-cp[i])*e;cp[9]=kick*.05;
     hq=hq+1&63;HP.set(cp,hq*10);
+  };
+  CATS={cat,step,at:d=>(hq-d&63)*10};
+  DANCE=SC.push(()=>{
+    const s=hypot(W,H),sc=R*.75,ga=x.globalAlpha;step();
     x.globalCompositeOperation='source-over';
     for(let i=0;i<12;i++){x.fillStyle=hs(hue+(i&1)*25,1,(i&1?26:38)+kick*6);x.beginPath();x.moveTo(0,0);x.arc(0,0,s,i*TAU/12+t*.15,(i+1)*TAU/12+t*.15+.01);x.fill()}
     for(const[cx,k,dl]of[[-R*1.05,.6,8],[R*1.05,.6,16],[0,1,0]]){
@@ -2212,6 +2216,43 @@ void main(){
     })-1;
   }
 }
+// ---- 39 dance floor: a floor of glowing tiles in front of a wall of light, and on it the three cats of the silhouette dance. The wall is the equaliser:
+// one column of panels per band, bass in the middle, lit as high as the band is loud. On the floor other tiles fade up on every beat and each kick sends
+// a ring of light outwards from the dancer in front. The floor is polished: it mirrors the wall and the dancers. Made for the disco mood; key C.
+let FLOOR=-1;
+{
+  const PT=.22,fl=CATS&&shader(`float hsh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+vec3 wall(vec2 p){ // the wall at the back, p = the spot on it (x, height above the floor)
+  vec2 g=p/.5,id=floor(g),f=abs(fract(g)-.5)*2.;int b=int(min(abs(id.x+.5),31.));float e=max(f.x,f.y);
+  return pal(h+.1+id.y*.035)*(.1+smoothstep(-.6,1.2,B[b]*15.-id.y)*(.7+.6*B[b])*(1.+.2*k))*smoothstep(.97,.8,e)*(.7+.3*(1.-e))*step(0.,p.y);
+}
+void main(){
+  UV;u*=R(ro);
+  vec3 d=vec3(u,1.4*z),v=normalize(vec3(d.x,d.y*cos(${PT})-d.z*sin(${PT}),d.y*sin(${PT})+d.z*cos(${PT}))),c; // the camera: 1 above the floor, looking a little down
+  if(1.+v.y*14./v.z>0.)c=wall(vec2(v.x,v.y)*14./v.z+vec2(0,1)); // the wall stands 14 away
+  else{
+    float s=1./-v.y;vec2 q=v.xz*s,g=q/.7,id=floor(g),f=abs(fract(g)-.5)*2.;float e=max(f.x,f.y),pn=smoothstep(.97,.85,e),rd=length((id+.5)*.7-vec2(0,5.5));
+    c=pal(h+.55+hsh(id)*.25)*(mix(step(.62,hsh(id+floor(m-1.)*.37)),step(.62,hsh(id+floor(m)*.37)),smoothstep(0.,.45,fract(m)))*.55+.06+k*.6*exp(-(rd-(1.-k)*9.)*(rd-(1.-k)*9.)*.8))*pn*(.75+.25*(1.-e));
+    float s2=(14.-q.y)/v.z;c+=wall(vec2(q.x+v.x*s2,-v.y*s2))*(.12+.5*pow(1.+v.y,4.))*pn; // the mirror image of the wall, stronger at a flat angle
+    c*=exp(-s*.02);
+  }
+  o=vec4(1.-exp(-c*1.6),1);
+}`,8e6,1);
+  if(fl)FLOOR=SC.push(()=>{
+    gm=bp||beats;x.save();fl();x.restore(); // (the shader helper resets the canvas transform)
+    CATS.step();
+    const ga=x.globalAlpha,cp=cos(PT),sp=sin(PT);x.globalCompositeOperation='source-over';
+    for(const[X,Z,dl]of[[-2.4,8,8],[2.4,8,16],[0,5.5,0]]){ // where they stand on the floor > where that is on screen (the same camera as in the shader)
+      const dz=sp+Z*cp,px=1.4*X/dz*H/2,py=(cp-Z*sp)/dz*1.4*H/2,sc=1.7/1.21*1.4/dz*H/2,o=CATS.at(dl);
+      x.save();x.translate(px,py);
+      x.save();x.scale(1,-1);x.translate(0,-.61*sc);x.globalAlpha=ga*.4;CATS.cat(o,0,sc,'#000');x.restore(); // mirrored in the floor
+      x.translate(0,-.61*sc); // (the cat's feet are .61 of its size below its origin)
+      x.globalAlpha=ga*.45;for(let j=2;j;j--)CATS.cat(CATS.at(dl+j*6),0,sc*(1+j*.05),hs(hue+150+j*40,1,55));
+      x.globalAlpha=ga;CATS.cat(o,0,sc,'#000',hs(hue+180,1,70));
+      x.restore();
+    }
+  })-1;
+}
 // ---- 3D transitions (drawn straight into the frame; the two scenes are the render targets OLD and NEW): the old scene becomes the picture on a wall of 64 x 36 tiles in front of the new one. Over the bar before the change the tiles
 // shrink to glowing wire frames and the wall bends into a sphere, a tunnel, a rolling landscape or a twisted ribbon, whose shape is the spectrum
 // (each column of tiles is pushed out by its band, all of it by the kick). On the bar line it bursts and fades. Parts without a beat and the dark
@@ -2323,7 +2364,7 @@ void main(){
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
 let view=c,POST=0,post=0,P3=0;
 if(gl){
-  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx;uniform int lk,l2;out vec4 o;
+  const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
 vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
   vec2 d=q-.5;vec3 c,b=textureLod(X,q,2.).rgb*.4+textureLod(X,q,3.5).rgb*.3+textureLod(X,q,5.).rgb*.2+textureLod(X,q,6.5).rgb*.1;
@@ -2362,6 +2403,12 @@ vec3 look(int lk,vec2 q){ // the frame in one of the looks (-1: untouched)
     return c*(.8+.2*sin(q.y*1700.));
   }
   return lk<0?c:c+max(b-.05,0.)*.9*(1.-min(1.,dot(c,vec3(.3,.5,.2)))); // the glow spreads into the dark around bright things; what is bright already stays as it is
+}
+// One laser head at e throwing a fan of nb thin beams around the direction ce, sp apart; fg = how much fog there is at this pixel. A beam is a line through the head:
+// thin where it leaves, a little wider the further it has come (it is coming towards us), with a soft glow around it, and brighter where it crosses a bank of fog.
+float laser(vec2 q,vec2 e,float as,float ce,float sp,float nb,float fg){
+  vec2 v=(q-e)*vec2(as,1);float r=length(v),d=mod(atan(v.y,v.x)-ce+3.1416,6.2832)-3.1416,pp=abs(mod(d+sp*.5,sp)-sp*.5)*r,w=.0011+.0035*r;
+  return (exp(-pp*pp/(w*w))+.22*exp(-pp/(w*5.)))*smoothstep(sp*nb*.5+sp*.1,sp*nb*.5-sp*.1,abs(d))*(.18+2.*fg)+exp(-r*70.)*.8;
 }
 vec3 hl(vec2 p,float l,vec3 b){return max(textureLod(X,p,l).rgb-b,0.);} // what is bright enough to throw a star: brighter than its surroundings by a good bit
 void main(){
@@ -2410,6 +2457,12 @@ void main(){
     c=mix(c,textureLod(X,q,log2(r.y)-4.5).rgb*1.3+vec3(.035,.045,.065),dn*.6*f1);
     float ld=length((q-vec2(sx,1.04))*vec2(as,1)); // the strobe: a lamp just above the top edge at sx. Its flash lights the fog around it and falls off with distance: never the whole frame white
     c+=vec3(.86,.93,1)*sb*(exp(-ld*2.)*(.15+1.6*dn+.5*n)+exp(-ld*22.)*1.5);
+    // laser show: three heads at the back of the room (left, right, top centre) throw fans of beams through the fog towards us. The fans swing and open and close slowly
+    // with the flow of the song; every four bars (lp) they change their figure and colours. They come on last (f2).
+    float u1=tf*.19+lp*2.1,u2=tf*.13+lp*1.3,fo=.035+.05*(.5+.5*sin(u2)),nb=5.+2.*mod(lp,3.),fg=dn+.12*n;
+    vec3 la=.5+.5*cos(6.283*(lp*.21+vec3(.33,0,.67))); // one saturated colour per figure, its two neighbours for the other heads
+    c+=(max(la-.25,0.)*1.5*laser(q,vec2(.16,.62),as,-.55+.5*sin(u1),fo,nb,fg)+max(la.gbr-.25,0.)*1.5*laser(q,vec2(.84,.62),as,3.1416+.55-.5*sin(u1+.6),fo,nb,fg)
+      +max(la.brg-.25,0.)*1.5*laser(q,vec2(.5,.8),as,-1.5708+.6*sin(u1*.8+1.),fo*1.3,nb+2.,fg))*(.5+.2*k)*f2;
   }
   o=vec4(c*(1.-(.5+1.6*da)*dot(d,d))+(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233))+t)*43758.5)-.5)*(.012+.05*da),1); // da: the dark mood has darker corners and more grain
 }`);
@@ -2425,7 +2478,7 @@ void main(){
     POST.draw=()=>{
       x.flush();
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
       // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
@@ -2467,7 +2520,7 @@ if(gl&&navigator.gpu&&(/[?&]hdr/.test(location.search)||/Chrome\//.test(navigato
 const shuf=a=>{for(let i=a.length;i>1;){const j=Math.random()*i--|0;[a[i],a[j]]=[a[j],a[i]]}return a}; // (a fair shuffle; sorting by random numbers is not)
 const pick=calm=>{
   const fill=a=>{shuf(a);if(a.at(-1)==cur)a.reverse();return a}; // a new bag holds every scene (the one on screen too, just not as the first to come out)
-  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i):dk<.5||DARK.includes(i)));
+  if(!bag.length)bag=fill(SC.map((_,i)=>i).filter(i=>tc?TECHNO.includes(i)||i==RACE||i==BIKES||i==FLY:dc?DISCO.includes(i)||i==FLOOR:dk<.5||DARK.includes(i)));
   if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
@@ -2699,7 +2752,7 @@ function frame(now){
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
-      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE'],
+      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>5?0:-1)+'  '+o(Lk,lkm>5?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
