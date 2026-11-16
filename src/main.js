@@ -227,7 +227,7 @@ function frame(now){
   }
   if(POST)POST.draw();
   if(GX)x.use(SCR); // the two overlays go straight onto the screen, after the post pass: no look, glow or grain touches them
-  const oa=XDR&&post&&RTL(look)?1/RHG:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
+  const oa=XDR&&post&&RTL(look)?1/RHG/RHB:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
   if(now<inf){ // frame rate, resolution, quality mode
     x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
     const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   VOLUME ${vol*100|0} %   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;

@@ -22,7 +22,7 @@ if(gl&&navigator.gpu&&(/[?&]hdr/.test(location.search)||/Chrome\//.test(navigato
         // and bright colours hit the limit. Here the lit strips may go past white instead: retro.js draws the tube RHG times darker (so nothing is cut off), this pass turns it up again.
         if(hc.width!=W||hc.height!=H||!tx){hc.width=W;hc.height=H;tx=dev.createTexture({size:[W,H],format:'rgba8unorm',usage:GPUTextureUsage.COPY_DST|GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.RENDER_ATTACHMENT});
           bg=dev.createBindGroup({layout:pl2.getBindGroupLayout(0),entries:[{binding:0,resource:sm},{binding:1,resource:tx.createView()},{binding:2,resource:{buffer:ub}}]})}
-        dev.queue.copyExternalImageToTexture({source:gc},{texture:tx},[W,H]);ga[0]=rt?0:.8+.3*kick;ga[1]=rt?RHG:1;dev.queue.writeBuffer(ub,0,ga);
+        dev.queue.copyExternalImageToTexture({source:gc},{texture:tx},[W,H]);ga[0]=rt?0:.8+.3*kick;ga[1]=rt?RHG*RHB:1;dev.queue.writeBuffer(ub,0,ga);
         const en=dev.createCommandEncoder(),ps=en.beginRenderPass({colorAttachments:[{view:cx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store'}]});
         ps.setPipeline(pl2);ps.setBindGroup(0,bg);ps.draw(3);ps.end();dev.queue.submit([en.finish()]);
       }};
