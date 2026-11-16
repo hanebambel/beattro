@@ -230,11 +230,11 @@ function frame(now){
   const oa=XDR&&post&&RTL(look)?1/RHG:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
   if(now<inf){ // frame rate, resolution, quality mode
     x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
-    const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;
+    const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   VOLUME ${vol*100|0} %   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;
     const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.globalAlpha=oa;x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
   }
   if(help){ // H: every key and what it is set to right now
-    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
+    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
