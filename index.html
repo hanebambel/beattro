@@ -816,7 +816,7 @@ void main(){
       const T3=x.lo(w,h,1);gl.bindFramebuffer(gl.FRAMEBUFFER,T3.fb);
       gl.viewport(0,0,w,h);gl.enable(gl.DEPTH_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       gl.useProgram(mp);gl.bindVertexArray(va);
-      gl.activeTexture(gl.TEXTURE1);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR); // (the 32-bit parts pick single texels themselves)gl.activeTexture(gl.TEXTURE0);
+      gl.activeTexture(gl.TEXTURE1);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.activeTexture(gl.TEXTURE0); // (the 32-bit parts pick single texels themselves)
       // chase camera: behind and above the craft, looking down the track, half following the banking
       const fe=FRM(rp-1.1),fa=FRM(rp+3),eye=v3(fe.c,fe.u,4),f=nrm(v3(v3(fa.c,fa.u,3.2),eye,-1)),sd=nrm(crs(f,nrm(v3([0,1,0],fe.u,1)))),up=crs(sd,f),
         n=.3,fr2=1500,ft=1/Math.tan(.6),fx=ft*H/W,za=(fr2+n)/(fr2-n);
@@ -2614,7 +2614,7 @@ function frame(now){
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
   // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
   // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2)); // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)look=lkm>5?alk:lkm;if(lkm<6)pl=look;
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>5?alk:lkm;if(lkm<6)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly

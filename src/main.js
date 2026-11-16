@@ -97,7 +97,7 @@ function frame(now){
   // no scroller, no shake, softer and longer pulses, scenes twice as long, only the brooding scenes. Songs from 100 to 115 BPM get the disco mood: the party pace, but only
   // the scenes that fit, a slow sway on every bar, and the picture through a seventies lens (post.js): mirror ball, its spots of light, star filter, warm colours. From 130 BPM: techno. Cold colours, the hard scenes,
   // fog drifting through the picture and strobe lamps above it that fire in short runs (flash()). M cycles auto / party / dark / disco / techno.
-  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2)); // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)look=lkm>5?alk:lkm;if(lkm<6)pl=look;
+  const md=mo?mo-1:MO;dk=+(md==1);dc=+(md==2);dca+=(dc-dca)*min(1,dt*(dc?.6:2.2));tc=+(md==3);tca+=(tc-tca)*min(1,dt*(tc?.6:2.2));look=lkm>5?alk:lkm;if(lkm<6)pl=look; // (a mood builds up over a few seconds but clears out in one: the mirror ball used to hang around for four seconds after M)
   const fl=dk?'grayscale(.85) sepia(.3) hue-rotate(170deg) contrast(1.25) brightness(.9)':'none';if(fl!=cfl)view.style.filter=cfl=fl;
   // a kick shakes the whole screen (CSS transform on the canvas); the base zoom hides the edges
   // only a big sudden jump of the low-passed level triggers it, harder kicks shake more; then it dies away slowly

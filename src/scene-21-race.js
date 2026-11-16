@@ -223,7 +223,7 @@ void main(){
       const T3=x.lo(w,h,1);gl.bindFramebuffer(gl.FRAMEBUFFER,T3.fb);
       gl.viewport(0,0,w,h);gl.enable(gl.DEPTH_TEST);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       gl.useProgram(mp);gl.bindVertexArray(va);
-      gl.activeTexture(gl.TEXTURE1);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR); // (the 32-bit parts pick single texels themselves)gl.activeTexture(gl.TEXTURE0);
+      gl.activeTexture(gl.TEXTURE1);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D_ARRAY,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.activeTexture(gl.TEXTURE0); // (the 32-bit parts pick single texels themselves)
       // chase camera: behind and above the craft, looking down the track, half following the banking
       const fe=FRM(rp-1.1),fa=FRM(rp+3),eye=v3(fe.c,fe.u,4),f=nrm(v3(v3(fa.c,fa.u,3.2),eye,-1)),sd=nrm(crs(f,nrm(v3([0,1,0],fe.u,1)))),up=crs(sd,f),
         n=.3,fr2=1500,ft=1/Math.tan(.6),fx=ft*H/W,za=(fr2+n)/(fr2-n);

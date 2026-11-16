@@ -1,9 +1,15 @@
 // node test.mjs — builds index.html from src/, syntax-checks the page script and feeds the beat detector a 120 BPM kick.
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 await import('./build.mjs'); // always test what src/ builds
 import assert from 'assert';
 const html = readFileSync(new URL('index.html', import.meta.url), 'utf8');
 new Function(html.match(/<script>([\s\S]*)<\/script>/)[1]); // throws on syntax errors
+// Code that slipped behind a line comment (a note added in the middle of a long line) is dead and no syntax check sees it: it happened three times
+// (the look fade, then the K key, then a texture unit in the race). ponytail: a pattern match on "prose)name=value;" or "prose)call(args);" at the end of the line after the //, not a parser; widen it if another shape turns up
+for (const f of readdirSync(new URL('src', import.meta.url)).filter(f => f.endsWith('.js'))) readFileSync(new URL('src/' + f, import.meta.url), 'utf8').split('\n').forEach((l, i) => {
+  const c = l.search(/(?<![:'"`\\])\/\/ /), m = c >= 0 && /[);]\s?[a-zA-Z_$][\w$.\[\]]*(?:[-+*]?=(?!=)[^ ]{3,}|\([^ ]*\);?\s*$)/.exec(l.slice(c));
+  assert(!m, `src/${f}:${i + 1}: code behind a comment: ${m && m[0].slice(0, 60)}`);
+});
 const mkBeat = eval(html.match(/const mkBeat=(.*);/)[1]), beat = mkBeat();
 let hits = 0;
 for (let i = 0; i < 600; i++) { // 10 s at 60 fps
