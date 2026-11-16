@@ -25,15 +25,15 @@ const DISCO=[0,2,3,5,6,8,10,11,13,14,15,16,18,24,26,27,28,29,32,33],DQ=[3,5,16,1
 const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the techno mood: tunnel, radial spectrum, dot sphere, oscilloscope, wire cubes, dot wave, twister, glenz, moire, sponge, city, black hole, cave, texture tunnel, kefrens (plus race, light bikes and attack run, see pick()). TQ: its quiet parts. Same ponytail as CALM
 // Strobe limiter: flashes never start less than 0.34 s apart, so there are at most three in any second, whatever the tempo or the music asks for
 // (more than three flashes a second can trigger seizures in people with photosensitive epilepsy). Returns a function (time, wanted) > 1 = flash now.
-// The three retro tube looks (retro.js). glow: the share of its light a phosphor still gives d seconds on (tau: its time constant). In the interlaced looks a line
+// The three retro tube looks (retro.js). RHG: with real HDR (hdr.js) the tube is drawn this much darker and turned up again behind the canvas, see there. (1.8: the brightest spot of the tube, where two scan lines of full white overlap on a lit strip, is 1.38 x 2.31 = 3.2 in light, 1.79 as a screen value.) glow: the share of its light a phosphor still gives d seconds on (tau: its time constant). In the interlaced looks a line
 // is only drawn every other frame and lives on its glow in between: there it never loses more than 15 % per frame, however slow the frames come
 // (lines pulsing deeper than that would flicker), and in both looks a quarter of a second without a frame clears the tube.
-const RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
+const RHG=1.8,RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
 let lat=0,trim=0;try{trim=+localStorage.trim||0}catch(e){} // s: manual sync trim, + = picture later; the , and . keys change it in steps of 10 ms and it is remembered
-let es=0,ft=tt,MO=+(/mood=([0123])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,tc=0,tca=0,stb=0,sbx=.5,sbn=0,sbu=-99,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
+let es=0,pd=0,ft=tt,MO=+(/mood=([0123])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,tc=0,tca=0,stb=0,sbx=.5,sbn=0,sbu=-99,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
 let cur=(+location.hash.slice(1)||1)-1,prev=-1,sw=tt-2,sb=0,bag=[],qbag=[]; // scene sequencer
 
 // Resolution switch (Q): steady 60 fps with a resolution that adapts (the default), or a fixed picture height: 4K, 2.5K, 1080p, 720p (RES; shaders run at
@@ -44,7 +44,7 @@ const QL=[1,.8,.64,.5,.4,.3,.22,.16],RES=[2160,1440,1080,720],RN=['4K','2.5K','1
 let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-9])/.exec(location.search)||[,9])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
 let GX=0,MAIN=0,OLD=0,NEW=0,HIS=0,SCR=0; // the WebGL drawing layer and its render targets (gx.js); without WebGL2 everything stays on the 2D canvas
 const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million pixels) times the current step; measured: beyond that even an M3 Max drops frames in transitions
-  const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto`:''; // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
+  const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto;position:relative`:''; // (relative: the HDR canvas lies on top of exactly this box) // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
 onresize=size;size();ui.textContent=IDLE;
 

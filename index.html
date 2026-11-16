@@ -40,15 +40,15 @@ const DISCO=[0,2,3,5,6,8,10,11,13,14,15,16,18,24,26,27,28,29,32,33],DQ=[3,5,16,1
 const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the techno mood: tunnel, radial spectrum, dot sphere, oscilloscope, wire cubes, dot wave, twister, glenz, moire, sponge, city, black hole, cave, texture tunnel, kefrens (plus race, light bikes and attack run, see pick()). TQ: its quiet parts. Same ponytail as CALM
 // Strobe limiter: flashes never start less than 0.34 s apart, so there are at most three in any second, whatever the tempo or the music asks for
 // (more than three flashes a second can trigger seizures in people with photosensitive epilepsy). Returns a function (time, wanted) > 1 = flash now.
-// The three retro tube looks (retro.js). glow: the share of its light a phosphor still gives d seconds on (tau: its time constant). In the interlaced looks a line
+// The three retro tube looks (retro.js). RHG: with real HDR (hdr.js) the tube is drawn this much darker and turned up again behind the canvas, see there. (1.8: the brightest spot of the tube, where two scan lines of full white overlap on a lit strip, is 1.38 x 2.31 = 3.2 in light, 1.79 as a screen value.) glow: the share of its light a phosphor still gives d seconds on (tau: its time constant). In the interlaced looks a line
 // is only drawn every other frame and lives on its glow in between: there it never loses more than 15 % per frame, however slow the frames come
 // (lines pulsing deeper than that would flicker), and in both looks a quarter of a second without a frame clears the tube.
-const RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
+const RHG=1.8,RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
 let lat=0,trim=0;try{trim=+localStorage.trim||0}catch(e){} // s: manual sync trim, + = picture later; the , and . keys change it in steps of 10 ms and it is remembered
-let es=0,ft=tt,MO=+(/mood=([0123])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,tc=0,tca=0,stb=0,sbx=.5,sbn=0,sbu=-99,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
+let es=0,pd=0,ft=tt,MO=+(/mood=([0123])/.exec(location.search)||[])[1]||0,mo=0,dk=0,dc=0,dca=0,tc=0,tca=0,stb=0,sbx=.5,sbn=0,sbu=-99,cfl='',ma=0,scn=0,BPM=0,T0=0,PAT=new Float32Array(64),bp=0,lst=-1,lph=-1,mv=5,mi=0,TR=0,lk=-9,sq=0,tk=0,ta=0,quiet=0,apr=-1,sdu=0,psc=0,arm=0,tl=2,bang=0,live=1,gm=0,gp=0,RACE=-1,RING=-1,lock=0,rp=0,rt=+(/rt=([\d.]+)/.exec(location.search)||[])[1]||0;
 let cur=(+location.hash.slice(1)||1)-1,prev=-1,sw=tt-2,sb=0,bag=[],qbag=[]; // scene sequencer
 
 // Resolution switch (Q): steady 60 fps with a resolution that adapts (the default), or a fixed picture height: 4K, 2.5K, 1080p, 720p (RES; shaders run at
@@ -59,7 +59,7 @@ const QL=[1,.8,.64,.5,.4,.3,.22,.16],RES=[2160,1440,1080,720],RN=['4K','2.5K','1
 let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-9])/.exec(location.search)||[,9])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
 let GX=0,MAIN=0,OLD=0,NEW=0,HIS=0,SCR=0; // the WebGL drawing layer and its render targets (gx.js); without WebGL2 everything stays on the 2D canvas
 const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million pixels) times the current step; measured: beyond that even an M3 Max drops frames in transitions
-  const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto`:''; // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
+  const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto;position:relative`:''; // (relative: the HDR canvas lies on top of exactly this box) // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
 onresize=size;size();ui.textContent=IDLE;
 
@@ -2522,7 +2522,7 @@ void main(){
     s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
   }
   o=vec4(max(s,pv),1);
-}`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a;out vec4 o;
+}`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a,hs;out vec4 o;
 vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
 void main(){
   vec2 q=gl_FragCoord.xy/r;float as=r.x/r.y,tw=min(1.,1.3333/as),th=min(1.,as/1.3333); // the tube: 4:3, as big as fits
@@ -2539,7 +2539,7 @@ void main(){
     c*=mk*(mod(mp.y+3.*mod(floor(mp.x/3.),2.),6.)<1.?.5:1.1);
     c=sqrt(c)*(1.-.22*dot(u,u))*smoothstep(.07,.045,rr)+.012;
   }
-  o=vec4(mix(texture(X,q).rgb,c,a),1);
+  o=vec4(mix(texture(X,q).rgb,c,a)*hs,1); // hs: with real HDR everything is drawn darker here and turned up again afterwards (hdr.js), so the lit phosphor strips can be brighter than white
 }`);
   let n=0;const lt=MD.map(()=>0);
   if(pa&&pb)RETRO=(F,a,m)=>{ // F: the target the post pass has just drawn the frame into; a: how far the look is in (it fades with the scene change); m: which of the modes
@@ -2550,7 +2550,7 @@ void main(){
     gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindTexture(gl.TEXTURE_2D,A.tex);
-    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);gl.uniform1f(pb.U('hs'),XDR&&RTL(look)?1/RHG:1); // (the same condition that switches the HDR canvas on in main.js, so the two never disagree for a frame)
     gl.drawArrays(gl.TRIANGLES,0,3);gl.activeTexture(gl.TEXTURE0);
   };
 }
@@ -2564,20 +2564,21 @@ if(gl&&navigator.gpu&&(/[?&]hdr/.test(location.search)||/Chrome\//.test(navigato
     const ad=await navigator.gpu.requestAdapter(),dev=await ad.requestDevice(),hc=mkc(1,1),cx=hc.getContext('webgpu');
     dev.onuncapturederror=e=>console.warn('HDR error:',e.error.message);
     cx.configure({device:dev,format:'rgba16float',toneMapping:{mode:'extended'},alphaMode:'opaque'});
-    hc.style.cssText='position:fixed;inset:0;display:none';document.body.insertBefore(hc,ui);hc.onclick=go;
+    hc.style.cssText='position:absolute;inset:0;display:none';document.body.insertBefore(hc,ui);hc.onclick=go;
     const mod=dev.createShaderModule({code:`struct V{@builtin(position)p:vec4f,@location(0)u:vec2f};
 @vertex fn v(@builtin(vertex_index)i:u32)->V{var o:V;let q=vec2f(f32(i&1u),f32(i>>1u))*2.;o.p=vec4f(q*2.-1.,0.,1.);o.u=vec2f(q.x,1.-q.y);return o;}
 @group(0)@binding(0)var s:sampler;@group(0)@binding(1)var t:texture_2d<f32>;@group(0)@binding(2)var<uniform> g:vec4f;
-@fragment fn f(i:V)->@location(0)vec4f{let c=textureSample(t,s,i.u).rgb;let b=smoothstep(.55,1.,max(c.r,max(c.g,c.b)));return vec4f(c*(1.+g.x*b*b),1.);}`}), // the brighter a pixel, the more it is turned up
+@fragment fn f(i:V)->@location(0)vec4f{let c=textureSample(t,s,i.u).rgb;let b=smoothstep(.55,1.,max(c.r,max(c.g,c.b)));return vec4f(c*(1.+g.x*b*b)*g.y,1.);}`}), // the brighter a pixel, the more it is turned up (g.y: the retro tubes instead get everything turned up evenly)
       pl2=dev.createRenderPipeline({layout:'auto',vertex:{module:mod,entryPoint:'v'},fragment:{module:mod,entryPoint:'f',targets:[{format:'rgba16float'}]}}),
       sm=dev.createSampler({magFilter:'linear',minFilter:'linear'}),ub=dev.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),ga=new Float32Array(4);
     let tx,bg;
     XDR={on:0,
       show(on){XDR.on=on;hc.style.display=on?'block':'none';view.style.transform=view.style.filter='';cfl='';view=on?hc:gc},
-      draw(){
+      draw(rt){ // rt: a retro tube look. Its phosphor mask and scan lines leave most of the glass dark, so on a normal screen a white area is only a third as bright as without them
+        // and bright colours hit the limit. Here the lit strips may go past white instead: retro.js draws the tube RHG times darker (so nothing is cut off), this pass turns it up again.
         if(hc.width!=W||hc.height!=H||!tx){hc.width=W;hc.height=H;tx=dev.createTexture({size:[W,H],format:'rgba8unorm',usage:GPUTextureUsage.COPY_DST|GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.RENDER_ATTACHMENT});
           bg=dev.createBindGroup({layout:pl2.getBindGroupLayout(0),entries:[{binding:0,resource:sm},{binding:1,resource:tx.createView()},{binding:2,resource:{buffer:ub}}]})}
-        dev.queue.copyExternalImageToTexture({source:gc},{texture:tx},[W,H]);ga[0]=.8+.3*kick;dev.queue.writeBuffer(ub,0,ga);
+        dev.queue.copyExternalImageToTexture({source:gc},{texture:tx},[W,H]);ga[0]=rt?0:.8+.3*kick;ga[1]=rt?RHG:1;dev.queue.writeBuffer(ub,0,ga);
         const en=dev.createCommandEncoder(),ps=en.beginRenderPass({colorAttachments:[{view:cx.getCurrentTexture().createView(),loadOp:'clear',storeOp:'store'}]});
         ps.setPipeline(pl2);ps.setBindGroup(0,bg);ps.draw(3);ps.end();dev.queue.submit([en.finish()]);
       }};
@@ -2710,7 +2711,7 @@ function frame(now){
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
-  bang*=Math.exp(-dt*4);view.style.opacity=1-pre*pre*.75;
+  bang*=Math.exp(-dt*4);pd=dk?pd+(pre-pd)*min(1,dt*1.2):pre;view.style.opacity=1-(dk?pd*.4:pd*pd*.75); // the dark mood dims less and slowly, and comes back just as slowly: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
@@ -2812,10 +2813,11 @@ function frame(now){
   }
   if(POST)POST.draw();
   if(GX)x.use(SCR); // the two overlays go straight onto the screen, after the post pass: no look, glow or grain touches them
+  const oa=XDR&&post&&RTL(look)?1/RHG:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
   if(now<inf){ // frame rate, resolution, quality mode
     x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
     const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;
-    const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
+    const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.globalAlpha=oa;x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
   }
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
@@ -2825,12 +2827,12 @@ function frame(now){
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;
-    x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000d';x.fillRect(px,py,pw,ph);x.font=`bold ${fz}px monospace`;
+    x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000d';x.fillRect(px,py,pw,ph);x.globalAlpha=oa;x.font=`bold ${fz}px monospace`;
     L.forEach(([k,d],i)=>{x.fillStyle=hs(hue+i*14,1,72);x.fillText(k,px+fz*1.5,py+lh*(i+1.4));x.fillStyle='#fff';x.fillText(d,px+fz*10,py+lh*(i+1.4),pw-fz*11.5)});
     x.restore();
   }
   if(GX){x.flush();x.use(MAIN)}
-  if(XDR){const on=+(post&&look==4);if(on!=XDR.on)XDR.show(on);if(on)XDR.draw()} // real HDR: the finished frame goes on to the WebGPU canvas
+  if(XDR){const on=+(post&&(look==4||RTL(look)));if(on!=XDR.on)XDR.show(on);if(on)XDR.draw(RTL(look))} // real HDR: the finished frame goes on to the WebGPU canvas
   jsa+=performance.now()-pf0;jsn++; // time the script itself needs per frame (shown by the ?bench hook)
 }
 if(!SC[cur])cur=0; // #N beyond the last scene

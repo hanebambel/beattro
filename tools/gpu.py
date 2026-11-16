@@ -13,7 +13,7 @@ subprocess.run(['node','build.mjs'],cwd=R,check=True,stdout=subprocess.DEVNULL)
 mp=f"&dur={os.environ.get('DUR','308.85')}&map=file://{O}/map.bin" if os.path.exists(O+'/map.bin') else ''
 mode,a=sys.argv[1],sys.argv[2:]
 if mode=='run':
-    sec=int(a[1]);w,h=(a[2:4]+['2880','1620'])[:2];url=f"file://{R}/index.html?fake&bench{mp}&{a[0]}";pat=r'BENCH[ HDR]* ([^"]*)'
+    sec=int(a[1]);w,h=(a[2:4]+['2880','1620'])[:2];url=f"file://{R}/index.html?fake&bench{mp}&{a[0]}";pat=r'BENCH ((?:HDR )?[^"]*)'
 else:
     hook="""{lock=1;requestAnimationFrame=()=>{};setTimeout(()=>{const px=new Uint8Array(4),fin=()=>{gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px)};
 for(let i=0;i<80;i++)frame(1e5+i*16.7);fin();const r=[];for(let k=0;k<3;k++){const t0=performance.now();for(let i=0;i<100;i++)frame(2e5+k*2e3+i*16.7);fin();r.push(((performance.now()-t0)/100).toFixed(2))}

@@ -26,7 +26,7 @@ void main(){
     s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
   }
   o=vec4(max(s,pv),1);
-}`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a;out vec4 o;
+}`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a,hs;out vec4 o;
 vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
 void main(){
   vec2 q=gl_FragCoord.xy/r;float as=r.x/r.y,tw=min(1.,1.3333/as),th=min(1.,as/1.3333); // the tube: 4:3, as big as fits
@@ -43,7 +43,7 @@ void main(){
     c*=mk*(mod(mp.y+3.*mod(floor(mp.x/3.),2.),6.)<1.?.5:1.1);
     c=sqrt(c)*(1.-.22*dot(u,u))*smoothstep(.07,.045,rr)+.012;
   }
-  o=vec4(mix(texture(X,q).rgb,c,a),1);
+  o=vec4(mix(texture(X,q).rgb,c,a)*hs,1); // hs: with real HDR everything is drawn darker here and turned up again afterwards (hdr.js), so the lit phosphor strips can be brighter than white
 }`);
   let n=0;const lt=MD.map(()=>0);
   if(pa&&pb)RETRO=(F,a,m)=>{ // F: the target the post pass has just drawn the frame into; a: how far the look is in (it fades with the scene change); m: which of the modes
@@ -54,7 +54,7 @@ void main(){
     gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindTexture(gl.TEXTURE_2D,A.tex);
-    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);gl.uniform1f(pb.U('hs'),XDR&&RTL(look)?1/RHG:1); // (the same condition that switches the HDR canvas on in main.js, so the two never disagree for a frame)
     gl.drawArrays(gl.TRIANGLES,0,3);gl.activeTexture(gl.TEXTURE0);
   };
 }

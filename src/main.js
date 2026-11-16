@@ -125,7 +125,7 @@ function frame(now){
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
-  bang*=Math.exp(-dt*4);view.style.opacity=1-pre*pre*.75;
+  bang*=Math.exp(-dt*4);pd=dk?pd+(pre-pd)*min(1,dt*1.2):pre;view.style.opacity=1-(dk?pd*.4:pd*pd*.75); // the dark mood dims less and slowly, and comes back just as slowly: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
@@ -227,10 +227,11 @@ function frame(now){
   }
   if(POST)POST.draw();
   if(GX)x.use(SCR); // the two overlays go straight onto the screen, after the post pass: no look, glow or grain touches them
+  const oa=XDR&&post&&RTL(look)?1/RHG:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
   if(now<inf){ // frame rate, resolution, quality mode
     x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
     const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;
-    const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
+    const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.globalAlpha=oa;x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
   }
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],
@@ -240,12 +241,12 @@ function frame(now){
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;
-    x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000d';x.fillRect(px,py,pw,ph);x.font=`bold ${fz}px monospace`;
+    x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000d';x.fillRect(px,py,pw,ph);x.globalAlpha=oa;x.font=`bold ${fz}px monospace`;
     L.forEach(([k,d],i)=>{x.fillStyle=hs(hue+i*14,1,72);x.fillText(k,px+fz*1.5,py+lh*(i+1.4));x.fillStyle='#fff';x.fillText(d,px+fz*10,py+lh*(i+1.4),pw-fz*11.5)});
     x.restore();
   }
   if(GX){x.flush();x.use(MAIN)}
-  if(XDR){const on=+(post&&look==4);if(on!=XDR.on)XDR.show(on);if(on)XDR.draw()} // real HDR: the finished frame goes on to the WebGPU canvas
+  if(XDR){const on=+(post&&(look==4||RTL(look)));if(on!=XDR.on)XDR.show(on);if(on)XDR.draw(RTL(look))} // real HDR: the finished frame goes on to the WebGPU canvas
   jsa+=performance.now()-pf0;jsn++; // time the script itself needs per frame (shown by the ?bench hook)
 }
 if(!SC[cur])cur=0; // #N beyond the last scene
