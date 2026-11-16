@@ -6,7 +6,7 @@ eighties and early nineties. Drop a song on the page and it plays it with
 world built from the song itself, a dance floor and more.
 
 No server, no install, no assets: everything is code in `index.html`
-(about 240 KB).
+(about 250 KB).
 
 <img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
 
@@ -38,6 +38,10 @@ pulses then sit on the beat instead of chasing it.
   hold-and-modify colours with their colour fringes, afterglow, scan lines,
   a phosphor mask and curved glass, one of them at 384 x 288 and two
   interlaced.
+- **Title and artist** from the file's tags (ID3v2 in an MP3, the iTunes
+  tags in an MP4 or M4A): the scroller opens with them when the song starts
+  and brings them again on every round; the dark mood, which has no
+  scroller, shows them now and then as a line in the lower bar.
 - **Real HDR** in Chromium-based browsers on a screen in HDR mode: highlights
   go brighter than white.
 - **Steady 60 frames a second**: the resolution adapts, up to 4K.
@@ -84,7 +88,7 @@ The page is built from the files in `src/`:
 
 ```
 node build.mjs    # pours src/ into index.html
-node test.mjs     # builds, then checks syntax, beat and tempo detection, song sections, the flash limits
+node test.mjs     # builds, then checks syntax, beat and tempo detection, song sections, the tag reader, the flash limits
 ```
 
 Edit only in `src/`; `index.html` is generated. Node is the only thing needed

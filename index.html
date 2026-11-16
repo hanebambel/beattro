@@ -44,6 +44,13 @@ const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the 
 // is only drawn every other frame and lives on its glow in between: there it never loses more than 15 % per frame, however slow the frames come
 // (lines pulsing deeper than that would flicker), and in both looks a quarter of a second without a frame clears the tube.
 const RHG=1.8,RHB=1.15,RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
+// The dimming before a big step up in the song counts beats, not seconds: it starts DIMB beats before the beat the step falls on and is fully in on that beat,
+// so it begins on a beat and takes two bars at any tempo. st: when the step comes, t: now, T0: where the beat grid starts (all in s). Without a tempo: the last 2 s.
+// Song title and artist, if the file says them (tags() in song-analysis.js; ?np=TITLE~ARTIST for stills). npt: the scroller opens with it when the song starts and brings it again on every
+// round; npc: the line in the lower cinema bar of the dark mood, which has no scroller. msg: what the scroller shows, as single characters (an accented letter or an emoji is one cell)
+let npt='',npc='',nps=0,scr0=0,scrw=0,msg=MSG;
+const setNP=(T,A)=>{[T,A]=[T,A].map(s=>(s||'').toUpperCase());npt=T&&A?`NOW PLAYING: ${T} BY ${A} ... `:T?`NOW PLAYING: ${T} ... `:A?`NOW PLAYING: A SONG BY ${A} ... `:'';npc=[T,A].filter(Boolean).join('  -  ');msg=npt?[...npt+MSG]:MSG;nps=1;if(GX)GX.glyphs(npt)};
+const DIMB=8,preDim=(st,t,T0,BPM)=>Math.min(1,Math.max(0,BPM>0?1-(Math.round((st-T0)*BPM/60)-(t-T0)*BPM/60)/DIMB:1-(st-t)/2));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
@@ -59,6 +66,7 @@ const LOOKS=()=>['NORMAL','SOLID','NEON','PSYCHEDELIC',XDR?'HDR (REAL: BRIGHTER 
 const QL=[1,.8,.64,.5,.4,.3,.22,.16],RES=[2160,1440,1080,720],RN=['4K','2.5K','1080P','720P'];
 let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-9])/.exec(location.search)||[,9])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
 let GX=0,MAIN=0,OLD=0,NEW=0,HIS=0,SCR=0; // the WebGL drawing layer and its render targets (gx.js); without WebGL2 everything stays on the 2D canvas
+if(FAKE)setNP(...decodeURIComponent((/np=([^&#]*)/.exec(location.search)||[,''])[1]).split('~'));
 const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million pixels) times the current step; measured: beyond that even an M3 Max drops frames in transitions
   const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto;position:relative`:''; // (relative: the HDR canvas lies on top of exactly this box) // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
@@ -409,16 +417,19 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
       }
       q[3]=min(1,max(0,q[3]));if(CC.size>4e3)CC.clear();CC.set(s,q);return q;
     };
-    // text: one sheet with the 95 printable characters, bold monospace like before, 16 per row
+    // text: one sheet with the 95 printable characters, bold monospace like before, 16 per row. Below them six more rows that fill up as other characters are asked for
+    // (a song title has umlauts, accents or another script): gph() draws such a character into the next free cell, squeezed to the cell's width if it is wider, and the sheet is loaded again before the next draw
     const FS=120,AC=mkc(1,1),ag=AC.getContext('2d');ag.font=`bold ${FS}px monospace`;
-    const CW=Math.ceil(ag.measureText('M').width),ADV=ag.measureText('M').width/FS,CH=FS*1.3|0;AC.width=CW*16+32;AC.height=CH*6;
+    const CW=Math.ceil(ag.measureText('M').width),ADV=ag.measureText('M').width/FS,CH=FS*1.3|0;AC.width=CW*16+32;AC.height=CH*12;
     ag.font=`bold ${FS}px monospace`;ag.fillStyle='#fff';for(let i=0;i<95;i++)ag.fillText(String.fromCharCode(32+i),i%16*(CW+2),(i>>4)*CH+FS);
+    const EX=new Map;let exd=0;const gph=cp=>{let k=EX.get(cp);if(!k){if(EX.size>95)EX.clear();EX.set(cp,k=96+EX.size);ag.clearRect(k%16*(CW+2),(k>>4)*CH,CW+2,CH);ag.fillText(String.fromCodePoint(cp),k%16*(CW+2),(k>>4)*CH+FS,CW);exd=1}return k}; // ponytail: 96 cells; when they are full it starts over, and a character still on screen shows a wrong glyph until it is drawn again a frame later
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,0);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);const atlas=mkTex(0,0,AC);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,0);
     gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,atlas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.activeTexture(gl.TEXTURE0);
     const G=GX={a:1,b:0,c:0,d:1,e:0,f:0,globalAlpha:1,globalCompositeOperation:'source-over',fillStyle:'#000',strokeStyle:'#000',lineWidth:1,font:'10px monospace',textAlign:'left',lineCap:'butt',lineJoin:'miter',imageSmoothingEnabled:true};
     const flush=G.flush=()=>{ // sets all the GL state it needs itself, so the scenes with their own GL code in between can't upset it; leaves blending off and no vertex array bound
       if(n){
         gl.bindFramebuffer(gl.FRAMEBUFFER,tgt.fb);gl.viewport(0,0,tgt.w,tgt.h);gl.useProgram(pg);gl.uniform2f(uR,tgt.w,tgt.h);gl.uniform1i(uT,10);
+        if(exd){exd=0;gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,atlas);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,0);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,AC);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,0);gl.generateMipmap(gl.TEXTURE_2D)}
         gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,ctex||atlas);
         if(ctex&&ctex!=atlas){gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,cnear?gl.NEAREST:gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,cnear?gl.NEAREST:gl.LINEAR)}
         gl.activeTexture(gl.TEXTURE0);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,cadd?gl.ONE:gl.ONE_MINUS_SRC_ALPHA);
@@ -489,13 +500,14 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
         const a=G.globalAlpha,u0=sx/iw,u1=(sx+sw)/iw,fl=im.tex?1:0,v0=fl?1-sy/ih:sy/ih,v1=fl?1-(sy+sh)/ih:(sy+sh)/ih,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,a,a,a,a,1);
         c(dx,dy,u0,v0);c(dx+dw,dy,u1,v0);c(dx,dy+dh,u0,v1);c(dx+dw,dy,u1,v0);c(dx+dw,dy+dh,u1,v1);c(dx,dy+dh,u0,v1);
       },
+      glyphs(s){for(const c of s)if(c.codePointAt(0)>160)gph(c.codePointAt(0))}, // all of a text's special characters at once: one reload of the sheet instead of one per character as it scrolls in
       measureText(s){return{width:s.length*ADV*parseFloat(/([\d.]+)px/.exec(G.font)[1])}},
       fillText(s,x,y,mw){
         const z=parseFloat(/([\d.]+)px/.exec(G.font)[1]),w=s.length*ADV*z,k=mw&&w>mw?mw/w:1,[r,g,b,a]=pm(G.fillStyle),ad=ADV*z*k,h=z*CH/FS,top=y-z;
         need(s.length*6,atlas,0);x-=G.textAlign=='center'?w*k/2:G.textAlign=='right'?w*k:0;
-        for(let i=0;i<s.length;i++){
-          const ch=s.charCodeAt(i)-32;if(ch<1||ch>94)continue;
-          const u0=ch%16*(CW+2)/AC.width,u1=u0+ADV*FS/AC.width,v0=(ch>>4)*CH/AC.height,v1=v0+CH/AC.height,X=x+i*ad,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,r,g,b,a,1);
+        for(let i=0,j=0;i<s.length;i++,j++){ // ponytail: width and centring count a character outside the basic plane (an emoji) as two cells
+          const cp=s.codePointAt(i),ch=cp<127?cp-32:cp>160?gph(cp):0;if(cp>65535)i++;if(ch<1)continue;
+          const u0=ch%16*(CW+2)/AC.width,u1=u0+ADV*FS/AC.width,v0=(ch>>4)*CH/AC.height,v1=v0+CH/AC.height,X=x+j*ad,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,r,g,b,a,1);
           c(X,top,u0,v0);c(X+ad,top,u1,v0);c(X,top+h,u0,v1);c(X+ad,top,u1,v0);c(X+ad,top+h,u1,v1);c(X,top+h,u0,v1);
         }
       },
@@ -1169,15 +1181,40 @@ function phase(bpm,t0,pat,up){
   if(e.filter(v=>v>e[bw]*.75).length==1){const d=((bw-r)%4+4)%4;r=(r+(d>2?d-4:d)+16)%16}
   return[t0+r*60/bpm,pat.map((_,i)=>pat[(i+r*4)%64])];
 }
+// Title and artist from the file's own tags: ID3v2 at the start of an MP3 (frames TIT2 and TPE1; in v2.2 TT2 and TP1), or the iTunes list of an MP4
+// (moov > udta > meta > ilst > (c)nam and (c)ART > data). Returns [title, artist], '' where there is none; cleaned of control characters, composed (NFC), at most 80 characters each.
+// ponytail: no ID3v1, no FLAC or Ogg comments, no unsynchronised, compressed or encrypted frames: such a file simply shows nothing. Add them when a file turns up that needs them
+const tags=buf=>{
+  const u=new Uint8Array(buf),N=u.length,o=['',''],s4=p=>String.fromCharCode(u[p],u[p+1],u[p+2],u[p+3]),be=(p,n=4)=>{let v=0;for(let i=0;i<n;i++)v=v*256+u[p+i];return v},
+    dec=(p,n,e)=>n>0&&p<N?new TextDecoder(e).decode(u.subarray(p,min(N,p+n))):'',
+    cl=s=>[...s.replace(/\0[^]*$/,'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim().normalize('NFC')].slice(0,80).join('');
+  if(N>10&&s4(0).startsWith('ID3')&&u[3]>1&&u[3]<5&&!(u[5]&128)){
+    const V=u[3],ss=p=>u[p]<<21|u[p+1]<<14|u[p+2]<<7|u[p+3],end=min(N,10+ss(6)),h=V<3?6:10; // (sizes with 7 bits per byte: the whole tag always, a frame only in v2.4)
+    let p=10;if(V>2&&u[5]&64)p+=V>3?ss(10):be(10)+4; // an extended header first
+    while(p+h<end&&u[p]){
+      const id=s4(p).slice(0,V<3?3:4),n=V<3?be(p+3,3):V>3?ss(p+4):be(p+4),k=id=='TIT2'||id=='TT2'?0:id=='TPE1'||id=='TP1'?1:-1,q=p+h+1,m=min(n,end-p-h)-1;
+      if(n<1)break;
+      if(k>=0&&!o[k]&&!(V>2&&u[p+9]&(V>3?15:192)))o[k]=cl(dec(q,m,[,u[q]==254?'utf-16be':'utf-16le','utf-16be','utf-8'][u[q-1]]||'latin1')); // the byte before the text says how it is encoded; UTF-16 with a mark in front says which way round itself
+      p+=h+n;
+    }
+  }else{
+    const at=(p,end,id)=>{while(p+8<=end){let n=be(p),h=8;if(n==1){n=be(p+8,8);h=16}else if(!n)n=end-p;if(n<h||p+n>end)return 0;if(s4(p+4)==id)return[p+h,p+n];p+=n}return 0}, // the box called id among those between p and end: where its content starts and ends
+      mv=at(0,N,'moov'),ud=mv&&at(mv[0],mv[1],'udta'),me=ud&&at(ud[0],ud[1],'meta')||mv&&at(mv[0],mv[1],'meta'),il=me&&(at(me[0]+4,me[1],'ilst')||at(me[0],me[1],'ilst')); // (meta has four more bytes before its boxes in an MP4, none in a QuickTime file)
+    if(il)['\xa9nam','\xa9ART'].map((id,k)=>{const d=at(il[0],il[1],id),t=d&&at(d[0],d[1],'data');if(t)o[k]=cl(dec(t[0]+8,t[1]-t[0]-8,'utf-8'))});
+  }
+  return o;
+};
 // </song>
 // The song as a flat ring for the waiting / pause screen: it builds up while the file is analysed. One spoke = one moment, bass inside, treble outside.
 const mc=document.createElement('canvas');mc.width=mc.height=512;const m2=mc.getContext('2d');m2.lineWidth=3.6;
 const spoke=(c,lv)=>{const a=c/SN*TAU-PI/2;for(let b=0;b<NB;b++){m2.strokeStyle=`hsl(${190+b*6},100%,${lv(b)*65}%)`;m2.beginPath();m2.arc(256,256,140+b*3.1,a,a+.01);m2.stroke()}};
 async function analyse(file){
-  const g=++sgen;SOK=0;SEC=[];sdu=BPM=MO=0;apr=0;sst='READING THE FILE';
+  const g=++sgen;SOK=0;SEC=[];sdu=BPM=MO=0;apr=0;sst='READING THE FILE';setNP();
   m2.clearRect(0,0,512,512);SD.fill(0);songTex();
   try{
     const buf=await file.arrayBuffer();
+    if(g!=sgen)return;
+    try{setNP(...tags(buf))}catch(e){console.warn('tags',e)} // (before decoding: that takes the buffer away. And on its own: a file with odd tags must still be analysed)
     await new Promise(r=>v.readyState||v.error?r():['loadedmetadata','error'].map(e=>v.addEventListener(e,r,{once:1}))); // need the length
     // ponytail: the whole file is decoded into memory. Long files are decoded at half or a quarter of the sample rate to stay around 600 MB
     // (their map has no top treble); if even that fails, the catch below falls back to the ring written live. Streaming decode if that ever matters.
@@ -1737,30 +1774,33 @@ let JUMP=-1;
   const JB=buf(320,180);let t0=0,lc=-9,dur=24;
   const q4=v=>(v>>6)*85; // 8-bit: four levels per colour channel
   const TH=new Float32Array(12);
-  function flat(camL,X,Y,fr,m){ // the game as pixels; m: 0 = 8-bit, 1 = 16-bit, between: the tiles change over one by one
+  function flat(camL,X,Y,fr,m,bg,pan){ // the game as pixels; m: 0 = 8-bit, 1 = 16-bit, between: the tiles change over one by one; bg: only the backdrop (the tiles and the knight are solid by now and drawn by the 3D part); pan: the backdrop pushed along by so many pixels (the camera turning)
     const p=JB.p,KC=floor(X/16);
     for(let sx=0;sx<320;sx++){
       const ti=floor((floor(camL)+sx)/16),xx=sx&~1,wx0=floor(camL)+sx; // 16-bit arrives tile by tile: the tiles near the knight first, the rest in a wave outwards, in random order
       for(let j=0;j<12;j++){const v=sin(ti*127.1+j*311.7)*43758.5;TH[j]=m*1.8-(v-floor(v))*.6-min(1,abs(ti-KC)/14)}
-      let wx=wx0,i=ti,H=hgt(i)*16,tx=((wx%16)+16)%16;const 
-        
-        h1=64+26*sin((wx*.35+900)*.011)+10*sin(wx*.35*.037),h2=44+18*sin((wx*.6+300)*.017)+7*sin(wx*.6*.051);
+      let wx=wx0,i=ti,H=hgt(i)*16,tx=((wx%16)+16)%16;
+      // the 16-bit backdrop: five layers behind the tiles, each scrolling at its own share of the camera's speed, the far ones slower. That difference is the parallax:
+      // L(f) is this screen column's place in a layer that moves at f times the speed of the ground (in whole pixels, like the hardware scrolled them)
+      const L=f=>floor(camL*f+pan)+sx,tri=v=>abs((v%2+2)%2-1),xc=L(.07),xm=L(.15),x1=L(.35),x2=L(.6),x3=L(.8),
+        hm=100+42*tri(xm*.013)+16*tri(xm*.041+.6),h1=96+20*sin((x1+900)*.011)+8*sin(x1*.037),h2=78+16*sin((x2+300)*.017)+6*sin(x2*.051),h3=50+16*abs(sin(x3*.07))+8*abs(sin(x3*.19+1)),
+        c1=10*sin(xc*.04)+5*sin(xc*.13+1)-3,c2=7*sin(xc*.031+4)+4*sin(xc*.17)-4,sn=131+5*tri(xm*.21); // two rows of clouds with flat undersides; where the snow starts
       for(let sy=0;sy<180;sy++){
         const tv=TH[(179-sy)>>4],hp=tv>0,yy=hp?sy:sy&~1,wy=179-yy;let r,g,b;
         if(!hp&&wx!=floor(camL)+xx){wx=floor(camL)+xx;i=floor(wx/16);H=hgt(i)*16;tx=((wx%16)+16)%16}else if(hp&&wx!=wx0){wx=wx0;i=ti;H=hgt(i)*16;tx=((wx%16)+16)%16}
-        if(wy<H){ // ground
+        if(wy<H&&!bg){ // ground
           if(hp){const d=H-wy;if(d<5){r=50+d*8;g=190-d*14;b=60}else{const sp=(wx*13+wy*7)%11<2,ln=tx==0||wy%8==0;r=150-(sp?30:0)-(ln?24:0)-d*.25;g=96-(sp?20:0)-(ln?18:0)-d*.2;b=48-(ln?10:0)}}
           else if(H-wy<4){r=0;g=168;b=0}else{const ln=tx<2||wy%8<2;r=ln?90:200;g=ln?30:76;b=12}
-        }else if(hp){ // 16-bit sky: gradient, two ranges of hills, clouds
-          const cl=sin((wx*.2+yy*3)*.02)+sin(wx*.2*.045+yy*.11);
-          if(wy<h2){r=40;g=150-(h2-wy)*.5;b=90}else if(wy<h1){r=70;g=130;b=175}
-          else if(cl>1.35&&wy>110){r=g=b=250}else{r=90+yy*.5;g=150+yy*.35;b=250}
+        }else if(hp){ // 16-bit sky, from the front layer to the back: tree line, two ranges of hills, mountains with snow on the high peaks, clouds, gradient
+          if(wy<h3){r=20;g=max(44,100-(h3-wy)*2.2);b=52}else if(wy<h2){r=40;g=150-(h2-wy)*.5;b=90}else if(wy<h1){r=70;g=130;b=175}
+          else if(wy<hm){if(wy>sn){r=236;g=242;b=252}else{r=118;g=136;b=206}}
+          else if(wy>=140&&wy<140+c1||wy>=160&&wy<160+c2){r=g=b=250}else{r=90+yy*.5;g=150+yy*.35;b=250}
         }else{r=92;g=148;b=252}
         if(hp&&tv<.12){const f=(1-tv/.12)*150;r+=f;g+=f;b+=f} // a tile flashes as it changes
         p[sy*320+sx]=hp?rgb(clamp(r),clamp(g),clamp(b)):rgb(q4(clamp(r)),q4(clamp(g)),q4(clamp(b)));
       }
     }
-    for(let y=0;y<16;y++)for(let c=0;c<12;c++){ // the knight
+    if(!bg)for(let y=0;y<16;y++)for(let c=0;c<12;c++){ // the knight
       const o=((fr*16+y)*24+c)*4;if(!SPX[o+3])continue;
       for(let k=0;k<(m<.5?4:1);k++){const sx=floor(X-camL)-6+(m<.5?(c&~1)+(k&1):c),sy=179-floor(Y)-15+(m<.5?(y&~1)+(k>>1):y),oo=m<.5?((fr*16+(y&~1))*24+(c&~1))*4:o;
         if(sx>=0&&sx<320&&sy>=0&&sy<180&&SPX[oo+3])p[sy*320+sx]=m<.5?rgb(q4(SPX[oo]),q4(SPX[oo+1]),q4(SPX[oo+2])):rgb(SPX[oo],SPX[oo+1],SPX[oo+2])}
@@ -1798,7 +1838,7 @@ void main(){
     vec3 day=mix(vec3(.75,.88,1),vec3(.36,.58,.98),smoothstep(0.,.6,v.y))+step(.62,nz(floor(w*14.)/14.*.07+t*.002))*.25*step(.05,v.y),
       nt=mix(vec3(.15,.19,.28),vec3(.02,.03,.07),smoothstep(0.,.55,v.y));
     nt=mix(nt,vec3(.07,.09,.13)+vec3(.45,.5,.6)*pow(m,5.)*.6,cl*.8)+vec3(1,.96,.85)*smoothstep(.9985,.999,m)*(1.-cl*.7)+vec3(.5,.6,.8)*pow(m,60.)*.5+vec3(.5,.55,.8)*cl*k*k*.5;
-    o=vec4(mix(day,nt,ng)*sa,sa);return; // sa: the sky only comes once all blocks have become solid (until then the pixel picture shows)
+    o=vec4(mix(day,nt,ng)*sa,sa);return; // sa: the sky comes late, while the camera swings (until then the pixel backdrop shows through)
   }
   vec3 V=normalize(cam-P);
   if(M==0)c=abs(n.x)>.5?C2:C1; // the knight: side faces show his side view, front and back his back view
@@ -1875,13 +1915,15 @@ void main(){
       // the castle: keep, four corner towers with thinner tops, a wide plinth, three bastions, a gate house, one tall thin tower (x, z, half width, height)
       const CB=[0,0,62,230,-115,-95,26,270,115,-95,26,270,-115,95,26,270,115,95,26,270,-115,-95,14,345,115,-95,14,345,-115,95,14,350,115,95,14,340,0,0,130,75,0,-108,22,165,0,108,22,165,118,0,22,165,-170,0,30,190,45,-30,18,400,45,-30,9,470];
       const hsA=new Float32Array(64);
-      solid=(X,Y,fr,c,g,res,ga,m3)=>{ // c: 0 = seen from the side like the 2D game, 1 = from behind; g: how far the world has grown up; res: 0 = 320 x 180, 1 = the full pixel budget
+      // The pixel picture is 320 x 180 stretched over the whole frame, whatever the frame's shape. Seen from the side the 3D part must be stretched the same way (fx), or its blocks and its knight
+      // stand beside the pixel ones they replace wherever the frame is not 16:9: two knights. The stretch goes away as the camera swings round.
+      solid=(X,Y,fr,c,g,res,ga,m3,sa)=>{ // sa: how far the 3D sky has replaced the pixel backdrop; c: 0 = seen from the side like the 2D game, 1 = from behind; g: how far the world has grown up; res: 0 = 320 x 180, 1 = the full pixel budget
         const gs=min(1,Math.sqrt(GLPX*2*QS/W/H)),hf=max(1,H*gs|0),hh=max(1,min(hf,180+(hf-180)*Math.round(res*8)/8)|0),w=max(1,hh*W/H|0),T=x.lo(w,hh,1),ce=c*c*(3-2*c),
           I0=floor(X/16)-22,az=ce*1.45,Dd=Math.exp(Math.log(1400)*(1-ce)+Math.log(70)*ce),ft=Math.exp(Math.log(1400/90)*(1-ce)+Math.log(1.25)*ce), // (the scene's zoom is already in the 2D transform the picture is drawn with)
           tg=[X+60*(1-ce)+55*ce,90*(1-ce)+(Y+14)*ce,0],hb=max(...[0,1,2,3,4,5,6].map(i=>hgt(floor(X/16)-i)))*16, // the tallest block between the camera and the knight: the camera stays above it
           eye=[tg[0]-sin(az)*Dd-90*ce,max(tg[1]+34*ce,(hb+26)*ce),tg[2]+cos(az)*Dd],
           f=nr([tg[0]-eye[0],tg[1]-eye[1],tg[2]-eye[2]]),s0=nr(cx(f,[0,1,0])),u0=cx(s0,f),rl=roll*ce,sd=s0.map((v,i)=>v*cos(rl)+u0[i]*sin(rl)),up=cx(sd,f),
-          n=2,fr2=9000,fx=ft*H/W,za=(fr2+n)/(fr2-n),ng=min(1,g/.6),fc=[.75,.88,1].map((v,i)=>v+([.15,.19,.28][i]-v)*ng*ng*(3-2*ng)),M=U('M');
+          n=2,fr2=9000,fx=ft*(9/16+(H/W-9/16)*ce),za=(fr2+n)/(fr2-n),ng=min(1,g/.6),fc=[.75,.88,1].map((v,i)=>v+([.15,.19,.28][i]-v)*ng*ng*(3-2*ng)),M=U('M');
         for(let i=0;i<64;i++)hsA[i]=hgt(I0+i);
         gl.bindFramebuffer(gl.FRAMEBUFFER,T.fb);gl.viewport(0,0,w,hh);gl.useProgram(jp);gl.bindVertexArray(va);gl.disable(gl.BLEND);
         gl.uniformMatrix4fv(U('VP'),false,[fx*sd[0],ft*up[0],za*f[0],f[0],fx*sd[1],ft*up[1],za*f[1],f[1],fx*sd[2],ft*up[2],za*f[2],f[2],-fx*dt3(sd,eye),-ft*dt3(up,eye),-za*dt3(f,eye)-2*fr2*n/(fr2-n),-dt3(f,eye)]);
@@ -1890,7 +1932,7 @@ void main(){
         gl.uniform3f(U('CC'),X,Y,0);gl.uniform3fv(U('CA'),CA);gl.uniform3fv(U('fogc'),fc);gl.uniform3fv(U('mdir'),md);gl.uniform3fv(U('sun'),nr([.5,.8,.6].map((v,i)=>v+(md[i]-v)*ng)));
         gl.uniform4fv(U('CB'),CB);gl.uniform1f(U('t'),t);gl.uniform1f(U('k'),kick);gl.uniform1f(U('h'),hue/360);gl.uniform1f(U('g'),g);gl.uniform1f(U('ap'),min(1,g*4));
         gl.uniform1f(U('fr'),fr);gl.uniform1f(U('I0'),I0);gl.uniform1fv(U('hs'),hsA);gl.uniform1fv(U('B'),B);gl.uniform1i(U('SP'),12);gl.uniform1i(U('NZ'),4);
-        gl.uniform1f(U('m3'),m3);gl.uniform1f(U('sa'),min(1,max(0,m3*5-4)));
+        gl.uniform1f(U('m3'),m3);gl.uniform1f(U('sa'),sa);
         gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.uniform1i(M,4);gl.drawArrays(gl.TRIANGLES,0,3);gl.enable(gl.DEPTH_TEST);gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.uniform1i(M,1);gl.drawArraysInstanced(gl.TRIANGLES,0,36,448);
@@ -1913,9 +1955,12 @@ void main(){
     const u=min(1,(tt-t0)/dur),sp=(BPM||120)/60*2,X=(8+(tt-t0)*sp)*16,Y=cyT(X/16)*16,fr=floor(X/8)&1,ga=x.globalAlpha,sm=(a,b,v)=>{v=min(1,max(0,(v-a)/(b-a)));return v*v*(3-2*v)},
       c=solid?sm(.46,.62,u):0,m3=solid?sm(.33,.46,u):0; // two tiles per beat; c: the camera's swing; m3: how far the pixel picture has turned into cubes (column by column)
     x.rotate(-roll);x.globalCompositeOperation='source-over';
-    if(m3<1)flat(X-100,X,Y,fr,sm(.17,.24,u));
-    if(m3>0)solid(X,Y,fr,c,sm(.6,1,u),sm(.5,.75,u),ga,m3);
-    else if(QS<.01&&solid)solid(X,Y,fr,1,1,0,0,1); // warm-up: build the 3D shader now, not when the cubes first appear
+    // the pixel backdrop stays behind the cubes and keeps scrolling, faster while the camera turns (a far backdrop slides sideways when you turn your head: 240 pixels for the whole swing),
+    // and only dissolves into the 3D sky during the swing
+    const sa=solid?sm(.5,.64,u):0;
+    if(sa<1)flat(X-100,X,Y,fr,sm(.17,.24,u),m3>=1,c*c*(3-2*c)*240);
+    if(m3>0)solid(X,Y,fr,c,sm(.6,1,u),sm(.5,.75,u),ga,m3,sa);
+    else if(QS<.01&&solid)solid(X,Y,fr,1,1,0,0,1,1); // warm-up: build the 3D shader now, not when the cubes first appear
     x.setTransform(XS,0,0,XS,0,0);x.globalAlpha=ga;x.font=`bold ${H*.03}px monospace`;x.fillStyle='#fff';x.fillText(ERA[u<.2?0:u<.36?1:u<.6?2:3],W*.03,H*.07);
   })-1;
 }
@@ -2700,11 +2745,11 @@ function frame(now){
   if(t<sw)sw=t;
   // sections: the analysed song knows where the beat comes in or drops out (SEC). Shortly before such a point it is armed and then fired
   // on the next audible beat, so the cut sits on the kick: fast cut to a wild scene (more) or a calm one (the beat drops out); a big "more" also flashes and shakes,
-  // and because the future is known, the picture dims during the 2 s before it.
+  // and because the future is known, the picture dims over the 8 beats before it (preDim in core.js).
   const cps=SN/dur(),sc=t*cps,SE=an||FAKE?SEC:[];let pre=arm&&arm[1]>.6?1:0; // not before the song plays: the waiting screen stays calm
   for(const s of SE){
     if(psc<s[0]-.3*cps&&sc>=s[0]-.3*cps&&sc-psc<cps)arm=[t,s[1],s[2]];
-    if(s[1]>.6&&s[0]>sc)pre=max(pre,1-(s[0]-sc)/cps/2);
+    if(s[1]>.6&&s[0]>sc)pre=max(pre,preDim(s[0]/cps,t,T0,grid?BPM:0));
   }
   psc=sc;
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
@@ -2713,7 +2758,7 @@ function frame(now){
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
-  bang*=Math.exp(-dt*4);pd=dk?pd+(pre-pd)*min(1,dt*1.2):pre;view.style.opacity=1-(dk?pd*.4:pd*pd*.75); // the dark mood dims less and slowly, and comes back just as slowly: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power
+  bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
@@ -2774,11 +2819,12 @@ function frame(now){
 
   // sine scroller (not in the dark mood)
   x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;da+=(dk-da)*min(1,dt);
-  const fz=H*.06,cw=fz*.62,off=t*fz*4%(MSG.length*cw);
+  if(nps&&npt&&(FAKE||an&&!v.paused)){nps=0;scr0=t;scrw=1} // a song with a title starts: the scroller starts over with it, coming in from the right edge
+  const fz=H*.06,cw=fz*.62,o0=(t-scr0)*fz*4-scrw*W,off=o0<0?o0:o0%(msg.length*cw);
   x.font=`bold ${fz}px monospace`;
-  for(let px=-(off%cw),n=floor(off/cw);px<W;px+=cw,n++){
+  for(let n=floor(off/cw),px=n*cw-off;px<W;px+=cw,n++)if(n>=0){
     x.fillStyle=hs(hue+n*9,1-da);
-    x.fillText(MSG[n%MSG.length],px,H*.9+sin(t*3+n*.35)*H*.035*(1+lvl));
+    x.fillText(msg[n%msg.length],px,H*.9+sin(t*3+n*.35)*H*.035*(1+lvl));
   }
   if(da>.01){ // dark mood, on top of everything: two layers of haze drifting against each other, darkened corners, film grain, cinema bars
     x.globalCompositeOperation='lighter';x.globalAlpha=da*.1;
@@ -2790,6 +2836,10 @@ function frame(now){
       const gx=Math.random()*128|0,gy=Math.random()*128|0;x.translate(gx,gy);x.fillRect(-gx,-gy,W,H);x.setTransform(1,0,0,1,0,0);
     }
     x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle='#000';x.fillRect(0,0,W,H*.1*da);x.fillRect(0,H*(1-.1*da),W,H*.1*da);
+    if(npc){ // title and artist in the lower bar, like a film credit: it fades in over the second bar of the song, stays four bars and fades out over one, and comes back every 32 bars (without a tempo a bar counts as 2.5 s)
+      const k=(grid?bp/4:tt/2.5)%32,ev=min(1,max(0,k-1),max(0,6-k));
+      if(ev>0){x.save();x.globalAlpha=.8*ev*ev*(3-2*ev)*da;x.fillStyle='#fff';x.font=`${H*.028}px monospace`;x.textAlign='center';x.fillText(npc,W/2,H*.96,W*.9);x.restore()}
+    }
   }
   x.globalCompositeOperation='lighter';
   t=tr;

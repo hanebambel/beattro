@@ -2,10 +2,12 @@
 const mc=document.createElement('canvas');mc.width=mc.height=512;const m2=mc.getContext('2d');m2.lineWidth=3.6;
 const spoke=(c,lv)=>{const a=c/SN*TAU-PI/2;for(let b=0;b<NB;b++){m2.strokeStyle=`hsl(${190+b*6},100%,${lv(b)*65}%)`;m2.beginPath();m2.arc(256,256,140+b*3.1,a,a+.01);m2.stroke()}};
 async function analyse(file){
-  const g=++sgen;SOK=0;SEC=[];sdu=BPM=MO=0;apr=0;sst='READING THE FILE';
+  const g=++sgen;SOK=0;SEC=[];sdu=BPM=MO=0;apr=0;sst='READING THE FILE';setNP();
   m2.clearRect(0,0,512,512);SD.fill(0);songTex();
   try{
     const buf=await file.arrayBuffer();
+    if(g!=sgen)return;
+    try{setNP(...tags(buf))}catch(e){console.warn('tags',e)} // (before decoding: that takes the buffer away. And on its own: a file with odd tags must still be analysed)
     await new Promise(r=>v.readyState||v.error?r():['loadedmetadata','error'].map(e=>v.addEventListener(e,r,{once:1}))); // need the length
     // ponytail: the whole file is decoded into memory. Long files are decoded at half or a quarter of the sample rate to stay around 600 MB
     // (their map has no top treble); if even that fails, the catch below falls back to the ring written live. Streaming decode if that ever matters.

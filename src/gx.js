@@ -37,16 +37,19 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
       }
       q[3]=min(1,max(0,q[3]));if(CC.size>4e3)CC.clear();CC.set(s,q);return q;
     };
-    // text: one sheet with the 95 printable characters, bold monospace like before, 16 per row
+    // text: one sheet with the 95 printable characters, bold monospace like before, 16 per row. Below them six more rows that fill up as other characters are asked for
+    // (a song title has umlauts, accents or another script): gph() draws such a character into the next free cell, squeezed to the cell's width if it is wider, and the sheet is loaded again before the next draw
     const FS=120,AC=mkc(1,1),ag=AC.getContext('2d');ag.font=`bold ${FS}px monospace`;
-    const CW=Math.ceil(ag.measureText('M').width),ADV=ag.measureText('M').width/FS,CH=FS*1.3|0;AC.width=CW*16+32;AC.height=CH*6;
+    const CW=Math.ceil(ag.measureText('M').width),ADV=ag.measureText('M').width/FS,CH=FS*1.3|0;AC.width=CW*16+32;AC.height=CH*12;
     ag.font=`bold ${FS}px monospace`;ag.fillStyle='#fff';for(let i=0;i<95;i++)ag.fillText(String.fromCharCode(32+i),i%16*(CW+2),(i>>4)*CH+FS);
+    const EX=new Map;let exd=0;const gph=cp=>{let k=EX.get(cp);if(!k){if(EX.size>95)EX.clear();EX.set(cp,k=96+EX.size);ag.clearRect(k%16*(CW+2),(k>>4)*CH,CW+2,CH);ag.fillText(String.fromCodePoint(cp),k%16*(CW+2),(k>>4)*CH+FS,CW);exd=1}return k}; // ponytail: 96 cells; when they are full it starts over, and a character still on screen shows a wrong glyph until it is drawn again a frame later
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,0);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);const atlas=mkTex(0,0,AC);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,0);
     gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,atlas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.activeTexture(gl.TEXTURE0);
     const G=GX={a:1,b:0,c:0,d:1,e:0,f:0,globalAlpha:1,globalCompositeOperation:'source-over',fillStyle:'#000',strokeStyle:'#000',lineWidth:1,font:'10px monospace',textAlign:'left',lineCap:'butt',lineJoin:'miter',imageSmoothingEnabled:true};
     const flush=G.flush=()=>{ // sets all the GL state it needs itself, so the scenes with their own GL code in between can't upset it; leaves blending off and no vertex array bound
       if(n){
         gl.bindFramebuffer(gl.FRAMEBUFFER,tgt.fb);gl.viewport(0,0,tgt.w,tgt.h);gl.useProgram(pg);gl.uniform2f(uR,tgt.w,tgt.h);gl.uniform1i(uT,10);
+        if(exd){exd=0;gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,atlas);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,0);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,AC);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,0);gl.generateMipmap(gl.TEXTURE_2D)}
         gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,ctex||atlas);
         if(ctex&&ctex!=atlas){gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,cnear?gl.NEAREST:gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,cnear?gl.NEAREST:gl.LINEAR)}
         gl.activeTexture(gl.TEXTURE0);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,cadd?gl.ONE:gl.ONE_MINUS_SRC_ALPHA);
@@ -117,13 +120,14 @@ void main(){u=U;c=C;m=M;gl_Position=vec4(P.x/R.x*2.-1.,1.-P.y/R.y*2.,0,1);}`));
         const a=G.globalAlpha,u0=sx/iw,u1=(sx+sw)/iw,fl=im.tex?1:0,v0=fl?1-sy/ih:sy/ih,v1=fl?1-(sy+sh)/ih:(sy+sh)/ih,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,a,a,a,a,1);
         c(dx,dy,u0,v0);c(dx+dw,dy,u1,v0);c(dx,dy+dh,u0,v1);c(dx+dw,dy,u1,v0);c(dx+dw,dy+dh,u1,v1);c(dx,dy+dh,u0,v1);
       },
+      glyphs(s){for(const c of s)if(c.codePointAt(0)>160)gph(c.codePointAt(0))}, // all of a text's special characters at once: one reload of the sheet instead of one per character as it scrolls in
       measureText(s){return{width:s.length*ADV*parseFloat(/([\d.]+)px/.exec(G.font)[1])}},
       fillText(s,x,y,mw){
         const z=parseFloat(/([\d.]+)px/.exec(G.font)[1]),w=s.length*ADV*z,k=mw&&w>mw?mw/w:1,[r,g,b,a]=pm(G.fillStyle),ad=ADV*z*k,h=z*CH/FS,top=y-z;
         need(s.length*6,atlas,0);x-=G.textAlign=='center'?w*k/2:G.textAlign=='right'?w*k:0;
-        for(let i=0;i<s.length;i++){
-          const ch=s.charCodeAt(i)-32;if(ch<1||ch>94)continue;
-          const u0=ch%16*(CW+2)/AC.width,u1=u0+ADV*FS/AC.width,v0=(ch>>4)*CH/AC.height,v1=v0+CH/AC.height,X=x+i*ad,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,r,g,b,a,1);
+        for(let i=0,j=0;i<s.length;i++,j++){ // ponytail: width and centring count a character outside the basic plane (an emoji) as two cells
+          const cp=s.codePointAt(i),ch=cp<127?cp-32:cp>160?gph(cp):0;if(cp>65535)i++;if(ch<1)continue;
+          const u0=ch%16*(CW+2)/AC.width,u1=u0+ADV*FS/AC.width,v0=(ch>>4)*CH/AC.height,v1=v0+CH/AC.height,X=x+j*ad,c=(X,Y,u,v)=>vx(px(X,Y),py(X,Y),u,v,r,g,b,a,1);
           c(X,top,u0,v0);c(X+ad,top,u1,v0);c(X,top+h,u0,v1);c(X+ad,top,u1,v0);c(X+ad,top+h,u1,v1);c(X,top+h,u0,v1);
         }
       },

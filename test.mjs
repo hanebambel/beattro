@@ -30,7 +30,7 @@ assert.equal(kicks, 20, `expected 20 kicks, got ${kicks}`);
 const SN = 4096, NB = 32, { min, max, floor, abs, cos, hypot, PI } = Math, TAU = PI * 2;
 const ED = new Function('NB', 'max', 'const ' + html.match(/const (ED=\[1\];.*?;) \/\//)[1] + 'return ED')(NB, max);
 let SD, SOK = 0, SEC; const songTex = () => {};
-eval(html.match(/\/\/ <song>.*\n([\s\S]*?)\/\/ <\/song>/)[1].replace('const SD', 'SD').replace(',SEC=[]', '').replace('const songTex', 'const glTex') + ';globalThis.sa={spectro,songMap,sect:d=>(sect(d),SEC),KD,tempo,phase}');
+eval(html.match(/\/\/ <song>.*\n([\s\S]*?)\/\/ <\/song>/)[1].replace('const SD', 'SD').replace(',SEC=[]', '').replace('const songTex', 'const glTex') + ';globalThis.sa={spectro,songMap,sect:d=>(sect(d),SEC),KD,tempo,phase,tags}');
 const tone = Float32Array.from({ length: 441000 }, (_, i) => i > 220500 ? Math.sin(i * TAU * 440 / 44100) : 1e-4 * Math.random());
 sa.songMap(sa.spectro(tone), 1);
 const tb = ED.findIndex((e, b) => e <= 20 && ED[b + 1] > 20), at = c => SD[(tb * SN + c) * 4];
@@ -82,6 +82,31 @@ if (process.argv[3]) { // node test.mjs track.f32 map.bin : song map of a real t
 const glow = eval(html.match(/glow=(\(d,tau,il\)=>.*?);\n/)[1]);
 for (const tau of [.05, .08, .12, .15]) { for (let d = 1 / 144; d <= .25; d += .002) assert(glow(d, tau, 1) >= .85, `glow ${d} ${tau}`); assert.equal(glow(.3, tau, 1), 0); assert.equal(glow(.3, tau, 0), 0); }
 assert(Math.abs(glow(1 / 60, .12, 0) - .87) < .01); assert.equal(glow(NaN, .12, 1), 0);
+// dimming before a big step up: it must count beats. A step at 10.3 s on a grid that starts at .25 s falls on beat 20 at 120 BPM: nothing 8 beats before, half way 4 before, full on the beat.
+// The same in seconds at 90 BPM (beat 15 at 10.25 s) must take longer; without a tempo it is the last 2 s
+const [, DIMB, preDim] = html.match(/const DIMB=(\d+),preDim=(.*);/), pdm = eval(preDim.replace(/DIMB/g, DIMB)), near = (a, b) => Math.abs(a - b) < 1e-9;
+assert(pdm(10.3, .25 + 12 * .5, .25, 120) == 0 && near(pdm(10.3, .25 + 16 * .5, .25, 120), .5) && pdm(10.3, .25 + 20 * .5, .25, 120) == 1 && pdm(10.3, 10.28, .25, 120) == 1, 'dimming at 120 BPM');
+assert(pdm(10.3, .25 + 7 / 1.5, .25, 90) == 0 && near(pdm(10.3, .25 + 11 / 1.5, .25, 90), .5) && near(pdm(10.3, 9.3, .25, 0), .5) && pdm(10.3, 8, .25, 0) == 0, 'dimming at 90 BPM and without a tempo');
+// title and artist from the file's tags. ID3: v2.3 (plain frame sizes, Latin-1 and UTF-16 either way round), v2.4 (frame sizes with 7 bits per byte, UTF-8, an accent that arrives as a separate
+// character), v2.2 (three-letter frames); each with a 200-byte frame in front, which only a correctly read size gets past. MP4: the iTunes list behind a box with a 64-bit size
+{
+  const B = (...a) => Buffer.concat(a.map(v => typeof v == 'string' ? Buffer.from(v, 'latin1') : Buffer.from(v))), u32 = n => [n >>> 24, n >>> 16 & 255, n >>> 8 & 255, n & 255], ss = n => [n >> 21 & 127, n >> 14 & 127, n >> 7 & 127, n & 127];
+  const id3 = (V, ...fr) => { const b = B(...fr.map(([id, d]) => V < 3 ? B(id, u32(d.length).slice(1), d) : B(id, V > 3 ? ss(d.length) : u32(d.length), [0, 0], d))); return B('ID3', [V, 0, 0], ss(b.length + 50), b, new Uint8Array(60)); };
+  const pad = Buffer.alloc(200, 65), u16 = (s, be) => { const b = Buffer.from('﻿' + s, 'utf16le'); return be ? b.swap16() : b; }, T = b => sa.tags(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
+  assert.deepEqual(T(id3(3, ['TALB', pad], ['TIT2', B([0], 'Caf\xe9 Song')], ['TPE1', B([1], u16('Die Ärzte'))])), ['Café Song', 'Die Ärzte'], 'ID3v2.3');
+  assert.deepEqual(T(id3(3, ['TPE1', B([1], u16('Big Endian', 1))], ['TIT2', B([2], u16('No Mark', 1).subarray(2))])), ['No Mark', 'Big Endian'], 'ID3v2.3, UTF-16 big endian');
+  assert.deepEqual(T(id3(4, ['TALB', pad], ['TIT2', B([3], Buffer.from('Märchen\0second value'))], ['TPE1', B([3], Buffer.from('A\tB' + 'x'.repeat(100)))])), ['Märchen', 'A B' + 'x'.repeat(77)], 'ID3v2.4');
+  assert.deepEqual(T(id3(2, ['TAL', pad], ['TT2', B([0], 'Old')], ['TP1', B([0], 'Tag')])), ['Old', 'Tag'], 'ID3v2.2');
+  const box = (id, ...c) => { const b = B(...c); return B(u32(b.length + 8), id, b); }, item = (id, s) => box(id, box('data', [0, 0, 0, 1, 0, 0, 0, 0], Buffer.from(s)));
+  const mp4 = meta => B(box('ftyp', 'M4A '), B(u32(1), 'mdat', [0, 0, 0, 0], u32(24), new Uint8Array(8)), box('moov', box('mvhd', new Uint8Array(20)), box('udta', meta)));
+  assert.deepEqual(T(mp4(box('meta', [0, 0, 0, 0], box('hdlr', new Uint8Array(12)), box('ilst', item('\xa9alb', 'Album'), item('\xa9nam', 'Straße'), item('\xa9ART', 'Björk'))))), ['Straße', 'Björk'], 'MP4');
+  assert.deepEqual(T(mp4(box('meta', box('ilst', item('\xa9nam', 'Only a title'))))), ['Only a title', ''], 'QuickTime-style meta, no artist');
+  // nothing to find, cut-off or senseless files: empty, never an exception (a throw would cost the song its analysis)
+  const good = id3(3, ['TIT2', B([1], u16('Cut off'))]), m4 = mp4(box('meta', [0, 0, 0, 0], box('ilst', item('\xa9nam', 'x'))));
+  for (const b of [B(), B('ID3'), good.subarray(0, 24), m4.subarray(0, m4.length - 5), B('ID3', [3, 0, 0, 127, 127, 127, 127], 'TIT2', [255, 255, 255, 255, 0, 0, 1]), B(u32(0), 'moov'), B(u32(1), 'moov', [255, 255, 255, 255, 255, 255, 255, 255]), Buffer.from(Array.from({ length: 4096 }, (_, i) => i * 7919 % 256))])
+    assert.deepEqual(T(b).map(v => typeof v), ['string', 'string'], 'odd file');
+  assert.deepEqual(T(B('RIFF', new Uint8Array(100))), ['', '']);
+}
 // looks: the K key steps through them plus "with the scenes"; the four places that know how many there are must agree (a wrong default boots the page in the last look)
 const lm = +html.match(/lkm=\(lkm\+1\)%(\d+)/)[1];
 for (const q of [`look=([0-${lm - 1}])`, `||[,${lm - 1}])[1]`, `look=lkm>${lm - 2}?alk:lkm`, `if(lkm<${lm - 1})pl=look`]) assert(html.includes(q), `look count: ${q}`);

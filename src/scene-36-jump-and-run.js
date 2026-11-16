@@ -26,30 +26,33 @@ let JUMP=-1;
   const JB=buf(320,180);let t0=0,lc=-9,dur=24;
   const q4=v=>(v>>6)*85; // 8-bit: four levels per colour channel
   const TH=new Float32Array(12);
-  function flat(camL,X,Y,fr,m){ // the game as pixels; m: 0 = 8-bit, 1 = 16-bit, between: the tiles change over one by one
+  function flat(camL,X,Y,fr,m,bg,pan){ // the game as pixels; m: 0 = 8-bit, 1 = 16-bit, between: the tiles change over one by one; bg: only the backdrop (the tiles and the knight are solid by now and drawn by the 3D part); pan: the backdrop pushed along by so many pixels (the camera turning)
     const p=JB.p,KC=floor(X/16);
     for(let sx=0;sx<320;sx++){
       const ti=floor((floor(camL)+sx)/16),xx=sx&~1,wx0=floor(camL)+sx; // 16-bit arrives tile by tile: the tiles near the knight first, the rest in a wave outwards, in random order
       for(let j=0;j<12;j++){const v=sin(ti*127.1+j*311.7)*43758.5;TH[j]=m*1.8-(v-floor(v))*.6-min(1,abs(ti-KC)/14)}
-      let wx=wx0,i=ti,H=hgt(i)*16,tx=((wx%16)+16)%16;const 
-        
-        h1=64+26*sin((wx*.35+900)*.011)+10*sin(wx*.35*.037),h2=44+18*sin((wx*.6+300)*.017)+7*sin(wx*.6*.051);
+      let wx=wx0,i=ti,H=hgt(i)*16,tx=((wx%16)+16)%16;
+      // the 16-bit backdrop: five layers behind the tiles, each scrolling at its own share of the camera's speed, the far ones slower. That difference is the parallax:
+      // L(f) is this screen column's place in a layer that moves at f times the speed of the ground (in whole pixels, like the hardware scrolled them)
+      const L=f=>floor(camL*f+pan)+sx,tri=v=>abs((v%2+2)%2-1),xc=L(.07),xm=L(.15),x1=L(.35),x2=L(.6),x3=L(.8),
+        hm=100+42*tri(xm*.013)+16*tri(xm*.041+.6),h1=96+20*sin((x1+900)*.011)+8*sin(x1*.037),h2=78+16*sin((x2+300)*.017)+6*sin(x2*.051),h3=50+16*abs(sin(x3*.07))+8*abs(sin(x3*.19+1)),
+        c1=10*sin(xc*.04)+5*sin(xc*.13+1)-3,c2=7*sin(xc*.031+4)+4*sin(xc*.17)-4,sn=131+5*tri(xm*.21); // two rows of clouds with flat undersides; where the snow starts
       for(let sy=0;sy<180;sy++){
         const tv=TH[(179-sy)>>4],hp=tv>0,yy=hp?sy:sy&~1,wy=179-yy;let r,g,b;
         if(!hp&&wx!=floor(camL)+xx){wx=floor(camL)+xx;i=floor(wx/16);H=hgt(i)*16;tx=((wx%16)+16)%16}else if(hp&&wx!=wx0){wx=wx0;i=ti;H=hgt(i)*16;tx=((wx%16)+16)%16}
-        if(wy<H){ // ground
+        if(wy<H&&!bg){ // ground
           if(hp){const d=H-wy;if(d<5){r=50+d*8;g=190-d*14;b=60}else{const sp=(wx*13+wy*7)%11<2,ln=tx==0||wy%8==0;r=150-(sp?30:0)-(ln?24:0)-d*.25;g=96-(sp?20:0)-(ln?18:0)-d*.2;b=48-(ln?10:0)}}
           else if(H-wy<4){r=0;g=168;b=0}else{const ln=tx<2||wy%8<2;r=ln?90:200;g=ln?30:76;b=12}
-        }else if(hp){ // 16-bit sky: gradient, two ranges of hills, clouds
-          const cl=sin((wx*.2+yy*3)*.02)+sin(wx*.2*.045+yy*.11);
-          if(wy<h2){r=40;g=150-(h2-wy)*.5;b=90}else if(wy<h1){r=70;g=130;b=175}
-          else if(cl>1.35&&wy>110){r=g=b=250}else{r=90+yy*.5;g=150+yy*.35;b=250}
+        }else if(hp){ // 16-bit sky, from the front layer to the back: tree line, two ranges of hills, mountains with snow on the high peaks, clouds, gradient
+          if(wy<h3){r=20;g=max(44,100-(h3-wy)*2.2);b=52}else if(wy<h2){r=40;g=150-(h2-wy)*.5;b=90}else if(wy<h1){r=70;g=130;b=175}
+          else if(wy<hm){if(wy>sn){r=236;g=242;b=252}else{r=118;g=136;b=206}}
+          else if(wy>=140&&wy<140+c1||wy>=160&&wy<160+c2){r=g=b=250}else{r=90+yy*.5;g=150+yy*.35;b=250}
         }else{r=92;g=148;b=252}
         if(hp&&tv<.12){const f=(1-tv/.12)*150;r+=f;g+=f;b+=f} // a tile flashes as it changes
         p[sy*320+sx]=hp?rgb(clamp(r),clamp(g),clamp(b)):rgb(q4(clamp(r)),q4(clamp(g)),q4(clamp(b)));
       }
     }
-    for(let y=0;y<16;y++)for(let c=0;c<12;c++){ // the knight
+    if(!bg)for(let y=0;y<16;y++)for(let c=0;c<12;c++){ // the knight
       const o=((fr*16+y)*24+c)*4;if(!SPX[o+3])continue;
       for(let k=0;k<(m<.5?4:1);k++){const sx=floor(X-camL)-6+(m<.5?(c&~1)+(k&1):c),sy=179-floor(Y)-15+(m<.5?(y&~1)+(k>>1):y),oo=m<.5?((fr*16+(y&~1))*24+(c&~1))*4:o;
         if(sx>=0&&sx<320&&sy>=0&&sy<180&&SPX[oo+3])p[sy*320+sx]=m<.5?rgb(q4(SPX[oo]),q4(SPX[oo+1]),q4(SPX[oo+2])):rgb(SPX[oo],SPX[oo+1],SPX[oo+2])}
@@ -87,7 +90,7 @@ void main(){
     vec3 day=mix(vec3(.75,.88,1),vec3(.36,.58,.98),smoothstep(0.,.6,v.y))+step(.62,nz(floor(w*14.)/14.*.07+t*.002))*.25*step(.05,v.y),
       nt=mix(vec3(.15,.19,.28),vec3(.02,.03,.07),smoothstep(0.,.55,v.y));
     nt=mix(nt,vec3(.07,.09,.13)+vec3(.45,.5,.6)*pow(m,5.)*.6,cl*.8)+vec3(1,.96,.85)*smoothstep(.9985,.999,m)*(1.-cl*.7)+vec3(.5,.6,.8)*pow(m,60.)*.5+vec3(.5,.55,.8)*cl*k*k*.5;
-    o=vec4(mix(day,nt,ng)*sa,sa);return; // sa: the sky only comes once all blocks have become solid (until then the pixel picture shows)
+    o=vec4(mix(day,nt,ng)*sa,sa);return; // sa: the sky comes late, while the camera swings (until then the pixel backdrop shows through)
   }
   vec3 V=normalize(cam-P);
   if(M==0)c=abs(n.x)>.5?C2:C1; // the knight: side faces show his side view, front and back his back view
@@ -164,13 +167,15 @@ void main(){
       // the castle: keep, four corner towers with thinner tops, a wide plinth, three bastions, a gate house, one tall thin tower (x, z, half width, height)
       const CB=[0,0,62,230,-115,-95,26,270,115,-95,26,270,-115,95,26,270,115,95,26,270,-115,-95,14,345,115,-95,14,345,-115,95,14,350,115,95,14,340,0,0,130,75,0,-108,22,165,0,108,22,165,118,0,22,165,-170,0,30,190,45,-30,18,400,45,-30,9,470];
       const hsA=new Float32Array(64);
-      solid=(X,Y,fr,c,g,res,ga,m3)=>{ // c: 0 = seen from the side like the 2D game, 1 = from behind; g: how far the world has grown up; res: 0 = 320 x 180, 1 = the full pixel budget
+      // The pixel picture is 320 x 180 stretched over the whole frame, whatever the frame's shape. Seen from the side the 3D part must be stretched the same way (fx), or its blocks and its knight
+      // stand beside the pixel ones they replace wherever the frame is not 16:9: two knights. The stretch goes away as the camera swings round.
+      solid=(X,Y,fr,c,g,res,ga,m3,sa)=>{ // sa: how far the 3D sky has replaced the pixel backdrop; c: 0 = seen from the side like the 2D game, 1 = from behind; g: how far the world has grown up; res: 0 = 320 x 180, 1 = the full pixel budget
         const gs=min(1,Math.sqrt(GLPX*2*QS/W/H)),hf=max(1,H*gs|0),hh=max(1,min(hf,180+(hf-180)*Math.round(res*8)/8)|0),w=max(1,hh*W/H|0),T=x.lo(w,hh,1),ce=c*c*(3-2*c),
           I0=floor(X/16)-22,az=ce*1.45,Dd=Math.exp(Math.log(1400)*(1-ce)+Math.log(70)*ce),ft=Math.exp(Math.log(1400/90)*(1-ce)+Math.log(1.25)*ce), // (the scene's zoom is already in the 2D transform the picture is drawn with)
           tg=[X+60*(1-ce)+55*ce,90*(1-ce)+(Y+14)*ce,0],hb=max(...[0,1,2,3,4,5,6].map(i=>hgt(floor(X/16)-i)))*16, // the tallest block between the camera and the knight: the camera stays above it
           eye=[tg[0]-sin(az)*Dd-90*ce,max(tg[1]+34*ce,(hb+26)*ce),tg[2]+cos(az)*Dd],
           f=nr([tg[0]-eye[0],tg[1]-eye[1],tg[2]-eye[2]]),s0=nr(cx(f,[0,1,0])),u0=cx(s0,f),rl=roll*ce,sd=s0.map((v,i)=>v*cos(rl)+u0[i]*sin(rl)),up=cx(sd,f),
-          n=2,fr2=9000,fx=ft*H/W,za=(fr2+n)/(fr2-n),ng=min(1,g/.6),fc=[.75,.88,1].map((v,i)=>v+([.15,.19,.28][i]-v)*ng*ng*(3-2*ng)),M=U('M');
+          n=2,fr2=9000,fx=ft*(9/16+(H/W-9/16)*ce),za=(fr2+n)/(fr2-n),ng=min(1,g/.6),fc=[.75,.88,1].map((v,i)=>v+([.15,.19,.28][i]-v)*ng*ng*(3-2*ng)),M=U('M');
         for(let i=0;i<64;i++)hsA[i]=hgt(I0+i);
         gl.bindFramebuffer(gl.FRAMEBUFFER,T.fb);gl.viewport(0,0,w,hh);gl.useProgram(jp);gl.bindVertexArray(va);gl.disable(gl.BLEND);
         gl.uniformMatrix4fv(U('VP'),false,[fx*sd[0],ft*up[0],za*f[0],f[0],fx*sd[1],ft*up[1],za*f[1],f[1],fx*sd[2],ft*up[2],za*f[2],f[2],-fx*dt3(sd,eye),-ft*dt3(up,eye),-za*dt3(f,eye)-2*fr2*n/(fr2-n),-dt3(f,eye)]);
@@ -179,7 +184,7 @@ void main(){
         gl.uniform3f(U('CC'),X,Y,0);gl.uniform3fv(U('CA'),CA);gl.uniform3fv(U('fogc'),fc);gl.uniform3fv(U('mdir'),md);gl.uniform3fv(U('sun'),nr([.5,.8,.6].map((v,i)=>v+(md[i]-v)*ng)));
         gl.uniform4fv(U('CB'),CB);gl.uniform1f(U('t'),t);gl.uniform1f(U('k'),kick);gl.uniform1f(U('h'),hue/360);gl.uniform1f(U('g'),g);gl.uniform1f(U('ap'),min(1,g*4));
         gl.uniform1f(U('fr'),fr);gl.uniform1f(U('I0'),I0);gl.uniform1fv(U('hs'),hsA);gl.uniform1fv(U('B'),B);gl.uniform1i(U('SP'),12);gl.uniform1i(U('NZ'),4);
-        gl.uniform1f(U('m3'),m3);gl.uniform1f(U('sa'),min(1,max(0,m3*5-4)));
+        gl.uniform1f(U('m3'),m3);gl.uniform1f(U('sa'),sa);
         gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         gl.uniform1i(M,4);gl.drawArrays(gl.TRIANGLES,0,3);gl.enable(gl.DEPTH_TEST);gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.uniform1i(M,1);gl.drawArraysInstanced(gl.TRIANGLES,0,36,448);
@@ -202,9 +207,12 @@ void main(){
     const u=min(1,(tt-t0)/dur),sp=(BPM||120)/60*2,X=(8+(tt-t0)*sp)*16,Y=cyT(X/16)*16,fr=floor(X/8)&1,ga=x.globalAlpha,sm=(a,b,v)=>{v=min(1,max(0,(v-a)/(b-a)));return v*v*(3-2*v)},
       c=solid?sm(.46,.62,u):0,m3=solid?sm(.33,.46,u):0; // two tiles per beat; c: the camera's swing; m3: how far the pixel picture has turned into cubes (column by column)
     x.rotate(-roll);x.globalCompositeOperation='source-over';
-    if(m3<1)flat(X-100,X,Y,fr,sm(.17,.24,u));
-    if(m3>0)solid(X,Y,fr,c,sm(.6,1,u),sm(.5,.75,u),ga,m3);
-    else if(QS<.01&&solid)solid(X,Y,fr,1,1,0,0,1); // warm-up: build the 3D shader now, not when the cubes first appear
+    // the pixel backdrop stays behind the cubes and keeps scrolling, faster while the camera turns (a far backdrop slides sideways when you turn your head: 240 pixels for the whole swing),
+    // and only dissolves into the 3D sky during the swing
+    const sa=solid?sm(.5,.64,u):0;
+    if(sa<1)flat(X-100,X,Y,fr,sm(.17,.24,u),m3>=1,c*c*(3-2*c)*240);
+    if(m3>0)solid(X,Y,fr,c,sm(.6,1,u),sm(.5,.75,u),ga,m3,sa);
+    else if(QS<.01&&solid)solid(X,Y,fr,1,1,0,0,1,1); // warm-up: build the 3D shader now, not when the cubes first appear
     x.setTransform(XS,0,0,XS,0,0);x.globalAlpha=ga;x.font=`bold ${H*.03}px monospace`;x.fillStyle='#fff';x.fillText(ERA[u<.2?0:u<.36?1:u<.6?2:3],W*.03,H*.07);
   })-1;
 }

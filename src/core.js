@@ -29,6 +29,13 @@ const TECHNO=[0,2,3,4,6,7,10,13,18,19,21,23,25,27,28],TQ=[4,7,18,19,25]; // the 
 // is only drawn every other frame and lives on its glow in between: there it never loses more than 15 % per frame, however slow the frames come
 // (lines pulsing deeper than that would flicker), and in both looks a quarter of a second without a frame clears the tube.
 const RHG=1.8,RHB=1.15,RTL=l=>l>5&&l<9,glow=(d,tau,il)=>!(d<=.25)?0:Math.max(il?.85:0,Math.exp(-d/tau));
+// The dimming before a big step up in the song counts beats, not seconds: it starts DIMB beats before the beat the step falls on and is fully in on that beat,
+// so it begins on a beat and takes two bars at any tempo. st: when the step comes, t: now, T0: where the beat grid starts (all in s). Without a tempo: the last 2 s.
+// Song title and artist, if the file says them (tags() in song-analysis.js; ?np=TITLE~ARTIST for stills). npt: the scroller opens with it when the song starts and brings it again on every
+// round; npc: the line in the lower cinema bar of the dark mood, which has no scroller. msg: what the scroller shows, as single characters (an accented letter or an emoji is one cell)
+let npt='',npc='',nps=0,scr0=0,scrw=0,msg=MSG;
+const setNP=(T,A)=>{[T,A]=[T,A].map(s=>(s||'').toUpperCase());npt=T&&A?`NOW PLAYING: ${T} BY ${A} ... `:T?`NOW PLAYING: ${T} ... `:A?`NOW PLAYING: A SONG BY ${A} ... `:'';npc=[T,A].filter(Boolean).join('  -  ');msg=npt?[...npt+MSG]:MSG;nps=1;if(GX)GX.glyphs(npt)};
+const DIMB=8,preDim=(st,t,T0,BPM)=>Math.min(1,Math.max(0,BPM>0?1-(Math.round((st-T0)*BPM/60)-(t-T0)*BPM/60)/DIMB:1-(st-t)/2));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
@@ -44,6 +51,7 @@ const LOOKS=()=>['NORMAL','SOLID','NEON','PSYCHEDELIC',XDR?'HDR (REAL: BRIGHTER 
 const QL=[1,.8,.64,.5,.4,.3,.22,.16],RES=[2160,1440,1080,720],RN=['4K','2.5K','1080P','720P'];
 let qm=/[?&]max/.test(location.search)?1:0,lv=+(/[?&]lv=([0-7])/.exec(location.search)||[])[1]||0,lkm=+(/look=([0-9])/.exec(location.search)||[,9])[1],look=0,pl=0,alk=0,lf=1,sl=16,nx=16,QS=1,XS=1,fps=0,fa=0,fn=0,fw=0,wst=0,jsa=0,jsn=0,wu=0,help=0,slow=0,good=0,bad=-1,bt=0,lup=0,inf=/bench/.test(location.search)?1e12:0;
 let GX=0,MAIN=0,OLD=0,NEW=0,HIS=0,SCR=0; // the WebGL drawing layer and its render targets (gx.js); without WebGL2 everything stays on the 2D canvas
+if(FAKE)setNP(...decodeURIComponent((/np=([^&#]*)/.exec(location.search)||[,''])[1]).split('~'));
 const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million pixels) times the current step; measured: beyond that even an M3 Max drops frames in transitions
   const iw=RTL(lkm)?min(innerWidth,innerHeight*4/3):innerWidth;document.body.style.cssText=iw<innerWidth?`width:${iw}px;margin:0 auto;position:relative`:''; // (relative: the HDR canvas lies on top of exactly this box) // the retro tube is 4:3: with that look chosen the whole picture is drawn 4:3 and centred, so nothing is cut off (when the look only comes with a scene, the tube shows the middle of the frame: retro.js)
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};

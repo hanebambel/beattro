@@ -112,11 +112,11 @@ function frame(now){
   if(t<sw)sw=t;
   // sections: the analysed song knows where the beat comes in or drops out (SEC). Shortly before such a point it is armed and then fired
   // on the next audible beat, so the cut sits on the kick: fast cut to a wild scene (more) or a calm one (the beat drops out); a big "more" also flashes and shakes,
-  // and because the future is known, the picture dims during the 2 s before it.
+  // and because the future is known, the picture dims over the 8 beats before it (preDim in core.js).
   const cps=SN/dur(),sc=t*cps,SE=an||FAKE?SEC:[];let pre=arm&&arm[1]>.6?1:0; // not before the song plays: the waiting screen stays calm
   for(const s of SE){
     if(psc<s[0]-.3*cps&&sc>=s[0]-.3*cps&&sc-psc<cps)arm=[t,s[1],s[2]];
-    if(s[1]>.6&&s[0]>sc)pre=max(pre,1-(s[0]-sc)/cps/2);
+    if(s[1]>.6&&s[0]>sc)pre=max(pre,preDim(s[0]/cps,t,T0,grid?BPM:0));
   }
   psc=sc;
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
@@ -125,7 +125,7 @@ function frame(now){
     if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
-  bang*=Math.exp(-dt*4);pd=dk?pd+(pre-pd)*min(1,dt*1.2):pre;view.style.opacity=1-(dk?pd*.4:pd*pd*.75); // the dark mood dims less and slowly, and comes back just as slowly: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power
+  bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
@@ -186,11 +186,12 @@ function frame(now){
 
   // sine scroller (not in the dark mood)
   x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;da+=(dk-da)*min(1,dt);
-  const fz=H*.06,cw=fz*.62,off=t*fz*4%(MSG.length*cw);
+  if(nps&&npt&&(FAKE||an&&!v.paused)){nps=0;scr0=t;scrw=1} // a song with a title starts: the scroller starts over with it, coming in from the right edge
+  const fz=H*.06,cw=fz*.62,o0=(t-scr0)*fz*4-scrw*W,off=o0<0?o0:o0%(msg.length*cw);
   x.font=`bold ${fz}px monospace`;
-  for(let px=-(off%cw),n=floor(off/cw);px<W;px+=cw,n++){
+  for(let n=floor(off/cw),px=n*cw-off;px<W;px+=cw,n++)if(n>=0){
     x.fillStyle=hs(hue+n*9,1-da);
-    x.fillText(MSG[n%MSG.length],px,H*.9+sin(t*3+n*.35)*H*.035*(1+lvl));
+    x.fillText(msg[n%msg.length],px,H*.9+sin(t*3+n*.35)*H*.035*(1+lvl));
   }
   if(da>.01){ // dark mood, on top of everything: two layers of haze drifting against each other, darkened corners, film grain, cinema bars
     x.globalCompositeOperation='lighter';x.globalAlpha=da*.1;
@@ -202,6 +203,10 @@ function frame(now){
       const gx=Math.random()*128|0,gy=Math.random()*128|0;x.translate(gx,gy);x.fillRect(-gx,-gy,W,H);x.setTransform(1,0,0,1,0,0);
     }
     x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle='#000';x.fillRect(0,0,W,H*.1*da);x.fillRect(0,H*(1-.1*da),W,H*.1*da);
+    if(npc){ // title and artist in the lower bar, like a film credit: it fades in over the second bar of the song, stays four bars and fades out over one, and comes back every 32 bars (without a tempo a bar counts as 2.5 s)
+      const k=(grid?bp/4:tt/2.5)%32,ev=min(1,max(0,k-1),max(0,6-k));
+      if(ev>0){x.save();x.globalAlpha=.8*ev*ev*(3-2*ev)*da;x.fillStyle='#fff';x.font=`${H*.028}px monospace`;x.textAlign='center';x.fillText(npc,W/2,H*.96,W*.9);x.restore()}
+    }
   }
   x.globalCompositeOperation='lighter';
   t=tr;

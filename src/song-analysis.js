@@ -95,4 +95,27 @@ function phase(bpm,t0,pat,up){
   if(e.filter(v=>v>e[bw]*.75).length==1){const d=((bw-r)%4+4)%4;r=(r+(d>2?d-4:d)+16)%16}
   return[t0+r*60/bpm,pat.map((_,i)=>pat[(i+r*4)%64])];
 }
+// Title and artist from the file's own tags: ID3v2 at the start of an MP3 (frames TIT2 and TPE1; in v2.2 TT2 and TP1), or the iTunes list of an MP4
+// (moov > udta > meta > ilst > (c)nam and (c)ART > data). Returns [title, artist], '' where there is none; cleaned of control characters, composed (NFC), at most 80 characters each.
+// ponytail: no ID3v1, no FLAC or Ogg comments, no unsynchronised, compressed or encrypted frames: such a file simply shows nothing. Add them when a file turns up that needs them
+const tags=buf=>{
+  const u=new Uint8Array(buf),N=u.length,o=['',''],s4=p=>String.fromCharCode(u[p],u[p+1],u[p+2],u[p+3]),be=(p,n=4)=>{let v=0;for(let i=0;i<n;i++)v=v*256+u[p+i];return v},
+    dec=(p,n,e)=>n>0&&p<N?new TextDecoder(e).decode(u.subarray(p,min(N,p+n))):'',
+    cl=s=>[...s.replace(/\0[^]*$/,'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim().normalize('NFC')].slice(0,80).join('');
+  if(N>10&&s4(0).startsWith('ID3')&&u[3]>1&&u[3]<5&&!(u[5]&128)){
+    const V=u[3],ss=p=>u[p]<<21|u[p+1]<<14|u[p+2]<<7|u[p+3],end=min(N,10+ss(6)),h=V<3?6:10; // (sizes with 7 bits per byte: the whole tag always, a frame only in v2.4)
+    let p=10;if(V>2&&u[5]&64)p+=V>3?ss(10):be(10)+4; // an extended header first
+    while(p+h<end&&u[p]){
+      const id=s4(p).slice(0,V<3?3:4),n=V<3?be(p+3,3):V>3?ss(p+4):be(p+4),k=id=='TIT2'||id=='TT2'?0:id=='TPE1'||id=='TP1'?1:-1,q=p+h+1,m=min(n,end-p-h)-1;
+      if(n<1)break;
+      if(k>=0&&!o[k]&&!(V>2&&u[p+9]&(V>3?15:192)))o[k]=cl(dec(q,m,[,u[q]==254?'utf-16be':'utf-16le','utf-16be','utf-8'][u[q-1]]||'latin1')); // the byte before the text says how it is encoded; UTF-16 with a mark in front says which way round itself
+      p+=h+n;
+    }
+  }else{
+    const at=(p,end,id)=>{while(p+8<=end){let n=be(p),h=8;if(n==1){n=be(p+8,8);h=16}else if(!n)n=end-p;if(n<h||p+n>end)return 0;if(s4(p+4)==id)return[p+h,p+n];p+=n}return 0}, // the box called id among those between p and end: where its content starts and ends
+      mv=at(0,N,'moov'),ud=mv&&at(mv[0],mv[1],'udta'),me=ud&&at(ud[0],ud[1],'meta')||mv&&at(mv[0],mv[1],'meta'),il=me&&(at(me[0]+4,me[1],'ilst')||at(me[0],me[1],'ilst')); // (meta has four more bytes before its boxes in an MP4, none in a QuickTime file)
+    if(il)['\xa9nam','\xa9ART'].map((id,k)=>{const d=at(il[0],il[1],id),t=d&&at(d[0],d[1],'data');if(t)o[k]=cl(dec(t[0]+8,t[1]-t[0]-8,'utf-8'))});
+  }
+  return o;
+};
 // </song>
