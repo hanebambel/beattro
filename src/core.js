@@ -42,6 +42,23 @@ const setNP=(T,A)=>{[T,A]=[T,A].map(s=>(s||'').toUpperCase());npt=T&&A?`NOW PLAY
 const DIMB=8,preDim=(st,t,T0,BPM)=>Math.min(1,Math.max(0,BPM>0?1-(Math.round((st-T0)*BPM/60)-(t-T0)*BPM/60)/DIMB:1-(st-t)/2));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
+// Zap (transition 7, only in the tube looks): the scene change as changing the channel on an analogue set. s seconds after the cut: a burst of snow while there is no signal (no colour in it:
+// the set switches colour off until it finds a colour signal); then the new picture, and its sync and colour lock one after the other: the line sync first (tear: for a few frames the lines
+// start too far left or right, the top of the screen most), the frame sync by letting the picture roll upwards until it sits (roll: how far it still has to go, in picture heights; the black
+// bar between two frames passes through), a bend that hangs below that bar for a moment, colour last and all at once, and the gain a touch too high until it has settled.
+// k stretches the times with the tempo (1 at 120 BPM), f0 and e0 are this zap's roll distance and tear. Returns [snow, roll, tear, colour, gain, bend]; ZN: nothing going on.
+// There is one burst of snow and nothing else that changes the brightness of the whole frame by much, and the burst is registered with the strobe limiter when it starts (main.js).
+// Tune (transition 8, tube looks): the slow one, as if someone turned the tuning knob from one station to the next. p = 0..1 through the transition. First half, the old scene, tuned away
+// towards its sound carrier: a fine slanted pattern and bars across the picture that follow the music (the sound getting into the picture), the colour turns weak and speckled and then
+// cuts out, contrast drops, snow comes up, the lines jitter and the picture starts to slip. Around the middle there is only snow, and the scenes change behind it. Second half, the new
+// scene, coming in from the other side: out of the snow, soft, without colour and still rolling; it settles, the snow clears, and at the very end the set's automatic fine tuning catches
+// the station: sharp and in colour from one frame to the next. Returns ZN's twelve: snow, roll, tear, colour, gain, bend, blur, pattern, bars, colour speckle, and two set by main.js.
+// Nothing in it changes the brightness of the frame quickly: the snow comes and goes over many frames.
+const tuneEnv=p=>{const S=(a,b,v)=>{v=Math.min(1,Math.max(0,(v-a)/(b-a)));return v*v*(3-2*v)};
+  if(p<.5){const d=Math.min(1,(p/.47)**1.3),sn=S(.45,.85,d),w=S(.2,.45,d);return[sn,-3*Math.max(0,d-.55)**2,sn*(1-sn)*.25,d<.45?1-.5*w:0,1-.3*S(.3,.8,d),0,0,.16*S(.08,.3,d)*(1-S(.55,.8,d)),S(.1,.35,d)*(1-S(.6,.85,d)),d<.45?.3*w:0,0,0]}
+  const d=Math.min(1,.15+.85*(1-p)/.47),sn=S(.25,.8,d);return[sn,2.3*(Math.max(0,d-.45)/.55)**1.5,sn*(1-sn)*.25,0,.85-.35*S(.15,.8,d),0,.6+2.2*S(.15,.9,d),0,0,0,0,0]};
+const ZN=[0,0,0,1,1,0,0,0,0,0,0,0],zapEnv=(s,k,f0,e0)=>{const a=s-.06*k,sn=Math.exp(-a/(.03*k));return a<0?[1,0,0,0,1,0]:[sn<.02?0:sn,Math.max(0,f0-a/(.28*k)),Math.abs(e0)*Math.exp(-a*55)<.002?0:e0*Math.exp(-a*55),+(a>.16*k),1+.1*Math.exp(-a/.05),a>.5?0:.04*Math.sign(e0)*Math.exp(-a/.07)]};
+let ZP=ZN,zapLast=-1e9,zapAt=0,zapOn=0,zapDry=0,zb1=0,zb2=0; // zapAt: how long after the switch the zap cuts (a scheduled switch starts before its bar line), zapOn: it has, zapDry: without snow (the limiter said no), zb: how loud bass and middle are, for the bars
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
 let lat=0,trim=0,vol=1,vg=0;try{trim=+localStorage.trim||0;const q=+(localStorage.vol??1);if(q>=0&&q<=1)vol=q}catch(e){} // vol: the volume, 0 to 1, up and down arrows, remembered. It sits behind the analysers (go()), so the picture reacts the same at any volume
 // // s: manual sync trim, + = picture later; the , and . keys change it in steps of 10 ms and it is remembered

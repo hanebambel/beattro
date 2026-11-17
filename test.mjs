@@ -81,6 +81,28 @@ if (process.argv[3]) { // node test.mjs track.f32 map.bin : song map of a real t
 // interlaced retro tube: a line that waits for its field must never dim by more than 15 % in one frame, at any frame rate; a long gap clears the tube
 const glow = eval(html.match(/glow=(\(d,tau,il\)=>.*?);\n/)[1]);
 for (const tau of [.05, .08, .12, .15]) { for (let d = 1 / 144; d <= .25; d += .002) assert(glow(d, tau, 1) >= .85, `glow ${d} ${tau}`); assert.equal(glow(.3, tau, 1), 0); assert.equal(glow(.3, tau, 0), 0); }
+// the zap: one burst of snow and no second one (snow is 1 from the cut, then only falls, and stays 0 once it is 0), the picture only ever rolls towards its place, colour comes on once,
+// and at every tempo all of it is over within a beat, back at exactly "nothing going on". And it must be picked through the strobe limiter, or strobes and zaps together could pass three a second
+{ const [, zn, f] = html.match(/const ZN=(\[.*?\]),zapEnv=(.*);\n/), ZN = eval(zn), zapEnv = eval(f), tuneEnv = eval(html.match(/const tuneEnv=([\s\S]*?\]\});\n/)[1]);
+  for (const bpm of [0, 80, 100, 120, 150, 180, 200]) for (const f0 of [.3, .9]) for (const e0 of [.2, -.2]) {
+    const k = Math.min(1.2, Math.max(.72, 120 / (bpm || 120))), beat = 60 / (bpm || 120); let pv = zapEnv(0, k, f0, e0), col = 0;
+    assert.deepEqual(pv.slice(0, 4), [1, 0, 0, 0], 'zap starts as snow');
+    for (let s = .002; s < 2; s += .002) { const z = zapEnv(s, k, f0, e0);
+      assert(z[0] <= pv[0] && (pv[0] > 0 || z[0] == 0) && z[0] >= 0 && z[0] <= 1, `zap snow at ${s}`); assert(z[3] >= pv[3], 'zap colour'); if (z[3] > pv[3]) col++;
+      if (pv[1] > 0) assert(z[1] < pv[1] && z[1] >= 0, `zap roll at ${s}`); assert(z[4] >= 1 && z[4] <= 1.1 && Math.abs(z[2]) <= .2 && Math.abs(z[5]) <= .04, 'zap sizes');
+      if (s >= Math.min(beat, .62)) assert(z[0] == 0 && z[1] == 0 && z[2] == 0 && z[3] == 1, `zap over within a beat at ${bpm} BPM (${s.toFixed(3)}: ${z})`);
+      pv = z; }
+    assert(col == 1 && pv[4] < 1.001 && pv[5] == 0, 'zap ends clean'); }
+  assert.deepEqual(ZN.slice(0, 6), zapEnv(9, 1, .5, .2).map(v => +v.toFixed(6))); assert(ZN.length == 12 && /if\(!zapOn\)\{zapOn=1;if\(!strobe\(last\/1e3,1\)\)zapDry=1\}/.test(html) && /if\(zapDry\)ZP\[0\]=0/.test(html), 'the zap registers its snow with the strobe limiter and goes without if refused');
+  // the tune: starts from the standing picture, the snow comes up and goes down once and never quickly (no step of the brightness of the frame), the scenes change while there is nothing but
+  // snow, the new picture only ever rolls towards its place and sits before the end, and at the end only blur, gain and colour are still off: that is the snap
+  let pv = tuneEnv(0), top = 0; assert.deepEqual(pv.map(v => v + 0), ZN, 'tune starts clean');
+  for (let i = 1; i < 1000; i++) { const p = i / 1000, z = tuneEnv(p); assert(z.length == 12 && z.every(v => v == v), 'tune values');
+    assert(Math.abs(z[0] - pv[0]) < .012 && z[0] >= 0 && z[0] <= 1 && (top ? z[0] <= pv[0] : z[0] >= pv[0]), `tune snow at ${p}`); if (z[0] == 1) top = top || p; if (p > .6) top = top || 1;
+    if (p > .43 && p < .57) assert(z[0] == 1, 'only snow while the scenes change'); else assert(Math.abs(z[4] - pv[4]) < .01, `tune gain at ${p}`);
+    if (i > 501) assert(z[1] <= pv[1] && z[1] >= 0, `tune roll at ${p}`); assert(z[4] >= .5 && z[4] <= 1 && z[6] >= 0 && z[6] <= 3 && z[7] <= .16 && z[8] <= 1 && z[9] <= .5 && Math.abs(z[2]) <= .07);
+    pv = z; }
+  assert(top > .3 && top < .43 && pv[0] == 0 && pv[1] == 0 && pv[2] == 0 && pv[3] == 0 && pv[4] > .8 && pv[6] > 0, 'tune ends just short of tuned: ' + pv); }
 // the tube's headroom follows the strength of its phosphor strips: the brightest spot (two scan lines of full white overlapping on a lit strip that also sits in the bright part of
 // its slot) must still fit into the canvas at every setting of the V key, and the shipped values must be ones the keys X and V can come back to
 { const [, f, m0, b0] = html.match(/const rhg=(.*?);let RML=([\d.]+),RHB=([\d.]+),RHG=rhg\(RML\)/), rhg = eval(f), stp = (v, n) => Math.abs(v * n - Math.round(v * n)) < 1e-9;

@@ -57,6 +57,23 @@ const setNP=(T,A)=>{[T,A]=[T,A].map(s=>(s||'').toUpperCase());npt=T&&A?`NOW PLAY
 const DIMB=8,preDim=(st,t,T0,BPM)=>Math.min(1,Math.max(0,BPM>0?1-(Math.round((st-T0)*BPM/60)-(t-T0)*BPM/60)/DIMB:1-(st-t)/2));
 const mkStrobe=(gap=.34)=>{let l=-9;return(t,w)=>{if(t<l)l=-9;return w&&t-l>=gap?(l=t,1):0}};
 const strobe=mkStrobe();
+// Zap (transition 7, only in the tube looks): the scene change as changing the channel on an analogue set. s seconds after the cut: a burst of snow while there is no signal (no colour in it:
+// the set switches colour off until it finds a colour signal); then the new picture, and its sync and colour lock one after the other: the line sync first (tear: for a few frames the lines
+// start too far left or right, the top of the screen most), the frame sync by letting the picture roll upwards until it sits (roll: how far it still has to go, in picture heights; the black
+// bar between two frames passes through), a bend that hangs below that bar for a moment, colour last and all at once, and the gain a touch too high until it has settled.
+// k stretches the times with the tempo (1 at 120 BPM), f0 and e0 are this zap's roll distance and tear. Returns [snow, roll, tear, colour, gain, bend]; ZN: nothing going on.
+// There is one burst of snow and nothing else that changes the brightness of the whole frame by much, and the burst is registered with the strobe limiter when it starts (main.js).
+// Tune (transition 8, tube looks): the slow one, as if someone turned the tuning knob from one station to the next. p = 0..1 through the transition. First half, the old scene, tuned away
+// towards its sound carrier: a fine slanted pattern and bars across the picture that follow the music (the sound getting into the picture), the colour turns weak and speckled and then
+// cuts out, contrast drops, snow comes up, the lines jitter and the picture starts to slip. Around the middle there is only snow, and the scenes change behind it. Second half, the new
+// scene, coming in from the other side: out of the snow, soft, without colour and still rolling; it settles, the snow clears, and at the very end the set's automatic fine tuning catches
+// the station: sharp and in colour from one frame to the next. Returns ZN's twelve: snow, roll, tear, colour, gain, bend, blur, pattern, bars, colour speckle, and two set by main.js.
+// Nothing in it changes the brightness of the frame quickly: the snow comes and goes over many frames.
+const tuneEnv=p=>{const S=(a,b,v)=>{v=Math.min(1,Math.max(0,(v-a)/(b-a)));return v*v*(3-2*v)};
+  if(p<.5){const d=Math.min(1,(p/.47)**1.3),sn=S(.45,.85,d),w=S(.2,.45,d);return[sn,-3*Math.max(0,d-.55)**2,sn*(1-sn)*.25,d<.45?1-.5*w:0,1-.3*S(.3,.8,d),0,0,.16*S(.08,.3,d)*(1-S(.55,.8,d)),S(.1,.35,d)*(1-S(.6,.85,d)),d<.45?.3*w:0,0,0]}
+  const d=Math.min(1,.15+.85*(1-p)/.47),sn=S(.25,.8,d);return[sn,2.3*(Math.max(0,d-.45)/.55)**1.5,sn*(1-sn)*.25,0,.85-.35*S(.15,.8,d),0,.6+2.2*S(.15,.9,d),0,0,0,0,0]};
+const ZN=[0,0,0,1,1,0,0,0,0,0,0,0],zapEnv=(s,k,f0,e0)=>{const a=s-.06*k,sn=Math.exp(-a/(.03*k));return a<0?[1,0,0,0,1,0]:[sn<.02?0:sn,Math.max(0,f0-a/(.28*k)),Math.abs(e0)*Math.exp(-a*55)<.002?0:e0*Math.exp(-a*55),+(a>.16*k),1+.1*Math.exp(-a/.05),a>.5?0:.04*Math.sign(e0)*Math.exp(-a/.07)]};
+let ZP=ZN,zapLast=-1e9,zapAt=0,zapOn=0,zapDry=0,zb1=0,zb2=0; // zapAt: how long after the switch the zap cuts (a scheduled switch starts before its bar line), zapOn: it has, zapDry: without snow (the limiter said no), zb: how loud bass and middle are, for the bars
 const CALM=[1,4,7,17,18,22,25,30,31,37]; // ponytail: fixed indices, they shift if shader scenes drop out (no WebGL2); then the picks are just less fitting // scenes for the quiet parts: mountains, oscilloscope, dot wave, julia, moire, ocean, cave, ring world, glow forest
 let lat=0,trim=0,vol=1,vg=0;try{trim=+localStorage.trim||0;const q=+(localStorage.vol??1);if(q>=0&&q<=1)vol=q}catch(e){} // vol: the volume, 0 to 1, up and down arrows, remembered. It sits behind the analysers (go()), so the picture reacts the same at any volume
 // // s: manual sync trim, + = picture later; the , and . keys change it in steps of 10 ms and it is remembered
@@ -2561,18 +2578,30 @@ if(gl&&POST){
   const mk=src=>{const p=gl.createProgram(),f=cmp(gl.FRAGMENT_SHADER,src),L={};gl.attachShader(p,VS);gl.attachShader(p,f);gl.linkProgram(p);
     if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.warn('shader scene off: retro look',gl.getProgramInfoLog(p),gl.getShaderInfoLog(f));return 0}
     p.U=n=>L[n]??=gl.getUniformLocation(p,n);return p};
-  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;out vec4 o;
-vec3 S(float i,float y){return floor(textureLod(X,.5+(vec2((i+.5)/r.x,y)-.5)*cp,ld).rgb*qn+.5)/qn;} // the frame at pixel i of this line, in the mode's steps per colour
+  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;uniform vec4 zp,zq,zt,zb;uniform uint zs;out vec4 o;
+vec3 S(float i,float y){return floor(textureLod(X,.5+(vec2((i+.5)/r.x,y)-.5)*cp,ld+zt.x).rgb*qn+.5)/qn;} // the frame at pixel i of this line, in the mode's steps per colour
+float hsh(vec2 p){uvec3 v=uvec3(uint(p.x),uint(p.y),zs)*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;return float(v.x>>8u)/16777216.;} // whole numbers in, 0..1 out: the same grain on every graphics card, new every frame (zs)
 void main(){
   vec2 p=floor(gl_FragCoord.xy);float y=(p.y+.5)/r.y;vec3 pv=max(texelFetch(PV,ivec2(p),0).rgb*dk-.004,0.); // what still glows here (the small step down: 8 bits would otherwise never quite reach black)
   if(il>=0.&&mod(p.y,2.)!=il){o=vec4(pv,1);return;} // interlaced: this line belongs to the other field, it is not drawn this frame
-  vec3 s=S(max(p.x-4.,0.),y); // ponytail: the real thing carries its state along the whole line; here every pixel replays the four before it, which is the same wherever the picture held still for four pixels
+  // the zap (core.js: zapEnv): what the set makes of the signal while it finds the new channel. zp: snow, roll, tear, colour; zq: gain, bend, brightness of the snow, how much of the afterglow stays. All of it in whole lines
+  // and whole pixels of this mode, so the colours replay as they do in a picture that stands. A line is 1.23 pictures wide and a frame 1.08 high: what lies between is black
+  float f=1.-y,vy=mod(y+floor(zp.y*1.08*r.y)/r.y,1.08),lw=floor(r.x*1.23),
+    px=mod(p.x+floor(r.x*(zp.z*exp(-f/.9)+zq.y*exp((vy-1.)*20.)+(hsh(vec2(0,p.y))-.5)*.1*zp.x*(1.-zp.x)))+2.*lw,lw); // (the last: while snow and picture mix, the noise pulls single lines about)
+  y=vy;
+  vec3 s=S(max(px-4.,0.),y); // ponytail: the real thing carries its state along the whole line; here every pixel replays the four before it, which is the same wherever the picture held still for four pixels
   for(int i=3;i>=0;i--){
-    vec3 g=S(max(p.x-float(i),0.),y),e=abs(s-g),m=s,gy=qn<20.?vec3(floor(dot(g,vec3(.3,.5,.2))*15.+.5)/15.):floor(g*3.+.5)/3.;
+    vec3 g=S(max(px-float(i),0.),y),e=abs(s-g),m=s,gy=qn<20.?vec3(floor(dot(g,vec3(.3,.5,.2))*15.+.5)/15.):floor(g*3.+.5)/3.;
     if(e.r>=e.g&&e.r>=e.b)m.r=g.r;else if(e.g>=e.b)m.g=g.g;else m.b=g.b; // modify: the colour that is furthest off
     s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
   }
-  o=vec4(max(s,pv),1);
+  bool on=px<r.x&&vy<1.;s=min(s*zq.x,1.);
+  if(on){ // the tune (core.js: tuneEnv; zt: blur, fine pattern, colour speckle, time; zb: the two bars, how far the pattern is pushed): colour as far as the set still finds it, speckled where it is weak
+    vec2 cq=floor(p/vec2(4,1));vec3 cn=vec3(hsh(cq+vec2(9,0)),hsh(cq+vec2(40,0)),hsh(cq+vec2(77,0)));s=max(mix(vec3(dot(s,vec3(.3,.59,.11))),s,zp.w)+zt.z*(cn-dot(cn,vec3(.3,.59,.11))),0.); // (colour has a quarter of the picture's sharpness along the line: so has its noise, and being colour only it leaves the brightness alone)
+    s=max(s+(s+.15)*(zt.y*sin(6.2832*(px/r.x*56.+vy*r.y*.31+zb.z))+zb.x*sin(6.2832*(vy*1.5+zt.w*.37))+zb.y*sin(6.2832*(vy*3.7-zt.w*.53))),0.); // the sound in the picture: the beat between sound and colour carrier, 56 slanted stripes to the line, and the sound itself as bars, wide ones for the bass, narrower ones above (added to the signal, so they show in the dark parts too)
+  }else s=vec3(0);pv*=on?zq.w:zq.w*.4; // (while the picture rolls, the long afterglow of this look would smear it into a bright blur and fill the black bar: it is cut short for those frames, on the lines that are drawn)
+  float nv=mix(hsh(p),hsh(p+vec2(1,0)),.3); // snow: every line and every frame new, along the line a little smeared; mostly dark with bright specks
+  o=vec4(mix(max(s,pv),vec3(nv*nv*zq.z),zp.x),1); // (the snow does not go through the afterglow: adding up there it would only get brighter and smear)
 }`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a,hs;uniform vec2 ml;out vec4 o;
 vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
 void main(){
@@ -2598,7 +2627,7 @@ void main(){
     gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D); // (unit 7 has the sampler with the blurred copies; the post pass binds its own texture there again next frame)
     gl.activeTexture(gl.TEXTURE14);gl.bindTexture(gl.TEXTURE_2D,B.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,A.fb);gl.viewport(0,0,RW,RH);gl.useProgram(pa);gl.uniform1i(pa.U('X'),7);gl.uniform1i(pa.U('PV'),14);gl.uniform2f(pa.U('r'),RW,RH);gl.uniform2f(pa.U('cp'),tw,th);
-    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
+    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1);gl.uniform4f(pa.U('zp'),ZP[0],ZP[1],ZP[2],ZP[3]);gl.uniform4f(pa.U('zq'),ZP[4],ZP[5],XDR&&XDR.on?.66:1.1,ZP[1]||ZP[2]?.45:1);gl.uniform1ui(pa.U('zs'),n&65535);gl.uniform4f(pa.U('zt'),ZP[6],ZP[7],ZP[9],t%997);gl.uniform4f(pa.U('zb'),ZP[8],ZP[10],ZP[11],0); // (the snow is held back in real HDR, where the tube is several times as bright) // (d: since this mode last ran, so nothing stale glows on after the look was away)
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindTexture(gl.TEXTURE_2D,A.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);gl.uniform2f(pb.U('ml'),RML,(3-RML)/2);gl.uniform1f(pb.U('hs'),XDR&&RTL(look)?1/RHG:1); // (the same condition that switches the HDR canvas on in main.js, so the two never disagree for a frame)
@@ -2644,7 +2673,7 @@ const pick=calm=>{
   if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
-function next(n){
+function next(n,mid,fast){ // mid: the transition is centred on the bar line (it starts half its length early); fast: the song has just stepped up or down, no time for a slow one
   prev=cur;cur=n??pick(quiet?1:undefined);
   bag=bag.filter(i=>i!=cur);qbag=qbag.filter(i=>i!=cur);sw=tt;sb=beats;scn++;
   // how long the new scene stays: 8 or 16 beats, and the faster the song, the more often 8 (at 90 BPM in 25 % of the cases, at 150 BPM in 60 %).
@@ -2655,6 +2684,13 @@ function next(n){
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
   pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
+  // The two transitions of the tube looks (core.js: zapEnv, tuneEnv), not for people who asked for reduced motion. The zap, every other time: not in calm passages or the dark mood (it is
+  // a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line. The tune takes its place in the calm passages and the dark mood, comes now and
+  // then otherwise, and takes at most eight beats.
+  zapAt=zapOn=zapDry=0;if(RETRO&&post&&RTL(lkm)&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<.5){tk=7;zapLast=last;zapAt=mid?tl/2:0}
+    else if(!fast&&Math.random()<(quiet||dk>.5?.5:.15)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
+  }
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
 const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore()};
@@ -2662,7 +2698,7 @@ const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore(
 // Techno strobes: a lamp above the picture fires on the beat, but only in runs: through the last bar of every four, and for two bars after the song steps up
 // (there it replaces the white flash of the other moods). Each flash comes from the next of four lamps. Never more than three a second (mkStrobe),
 // none for people who asked their system for reduced motion, none before the fog is in. b: the beat number. (The limiter runs on the wall clock, not the song's.)
-const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
+const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&!(tk==7&&prev>=0&&!zapOn&&sw+zapAt-tt<.4)&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
 function frame(now){
   requestAnimationFrame(frame);
   const pf0=performance.now();fa+=(now-last)/1e3;fn++;fw=max(fw,now-last);
@@ -2759,15 +2795,22 @@ function frame(now){
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
     const up=arm[1]>0,a=min(1,abs(arm[1]));
     if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6)sub=max(sub,a)}
-    if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
+    if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1),0,1);tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
   bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
-  if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
-  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1; // lf: how far the look has faded over from the old scene's to the new one's
-  QS=qm?1e9:QL[lv]*(p<1&&prev>=0?.5:1); // pixel budget of the shader scenes; halved while two scenes run at once in a transition
+  if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
+  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1;
+  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt){ // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
+    if(!zapOn){zapOn=1;if(!strobe(last/1e3,1))zapDry=1}
+    ZP=zapEnv(t-sw-zapAt,min(1.2,max(.72,120/(BPM||120))),.3+.6*(ta*7.3%1),ta%.2>.1?.2:-.2).concat(0,0,0,0,0,0);if(zapDry)ZP[0]=0;
+  }else if(tk==8&&prev>=0&&p<1){ // the tune: the bars follow bass and middle, slowly (they are wide: no pumping), the lines sway, the fine pattern squirms with the bass
+    zb1+=(min(1,Math.sqrt(max(0,B[1]))*1.2)-zb1)*min(1,dt*4);zb2+=(min(1,Math.sqrt(max(0,B[NB>>2]))*1.2)-zb2)*min(1,dt*4); // (the root: quiet music still shows, silence does not)
+    ZP=tuneEnv(p);ZP[2]*=sin(t*11);ZP[10]=ZP[8]*.16*zb2;ZP[8]*=.28*zb1;ZP[11]=zb1*.5;
+  } // lf: how far the look has faded over from the old scene's to the new one's
+  QS=qm?1e9:QL[lv]*(p<1&&prev>=0&&tk<7?.5:1); // pixel budget of the shader scenes; halved while two scenes run at once in a transition
 
   // flow: the scenes don't run on the wall clock but on one that speeds up and slows down with the slow swell of the music (es: the level over the
   // last ~2 s, relative to the whole song). So everything streams along with the song without snapping to beats; slower and heavier in the dark mood.
@@ -2792,7 +2835,7 @@ function frame(now){
     x.fillRect(S[i]/z*F,Y,s,s);
   }
 
-    if(p<1&&prev>=0&&TR){ // 3D: the old scene keeps running in its own render target (with its own trails) and is the picture on the tiles in front of the new one
+    if(p<1&&prev>=0&&TR&&tk<7){ // (the zap is a cut: the new scene from the first frame, the rest happens in the tube, retro.js) // 3D: the old scene keeps running in its own render target (with its own trails) and is the picture on the tiles in front of the new one
       const pre=()=>{x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='rgba(0,0,10,.4)';x.fillRect(0,0,W,H);x.globalCompositeOperation='lighter';x.translate(W/2,H/2);x.rotate(roll)};
       const LK=look;x.save();x.use(OLD);XS=.5;x.setTransform(XS,0,0,XS,0,0);pre();look=pl;show(prev,1,cz);look=LK;XS=1; // (solid is drawn by the scenes themselves, so the old scene keeps its own look)
       if(tk==5){ // cube: the new scene, too, runs in a target of its own (full size, it ends up filling the screen) and both are faces of the cube
@@ -2800,7 +2843,7 @@ function frame(now){
         TR.cube(q,scn&1?1:-1);cub=1;
       }else{x.use(MAIN);x.restore();show(cur,1,cz);tk==6?TR.rain(p):TR.draw(p,tk)}
     }
-  else if(p<1&&prev>=0){
+  else if(p<1&&prev>=0&&tk<7){
     // six wipes, picked at random: the new scene is drawn inside a growing shape, the old one outside it, and the edge glows
     const s=hypot(W,H),A=new Path2D,O=new Path2D,n=10,c=s/n;
     if(tk==0)A.arc(0,0,q*s*.51,0,TAU); // iris
@@ -2813,7 +2856,7 @@ function frame(now){
     x.save();x.clip(O,'evenodd');show(prev,1,1);x.restore();
     x.save();x.clip(A);show(cur,1,cz);x.restore();
     x.strokeStyle=hs(hue,1-q,80);x.lineWidth=3*D;x.stroke(A);
-  }else show(cur,1,cz);
+  }else show(tk>6&&prev>=0&&(tk==7?p*tl<zapAt:p<.5)?prev:cur,1,cz); // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
   if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23){ // (not the race and the ring world: they carry text; not the black hole: it looks wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
     const mi=1+(scn%6==1),src=()=>{if(!GX)return c;const S=x.lo(W,H);x.copy(MAIN,S);return S}; // WebGL: a copy of the frame as it is now
     x.save();x.globalAlpha=ma;x.globalCompositeOperation='source-over';x.setTransform(-1,0,0,1,W,0);x.drawImage(src(),0,0,W/2,H,0,0,W/2,H);

@@ -7,7 +7,7 @@ const pick=calm=>{
   if(!qbag.length)qbag=fill((tc?TQ:dc?DQ:DARK).filter(i=>SC[i]));
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
-function next(n){
+function next(n,mid,fast){ // mid: the transition is centred on the bar line (it starts half its length early); fast: the song has just stepped up or down, no time for a slow one
   prev=cur;cur=n??pick(quiet?1:undefined);
   bag=bag.filter(i=>i!=cur);qbag=qbag.filter(i=>i!=cur);sw=tt;sb=beats;scn++;
   // how long the new scene stays: 8 or 16 beats, and the faster the song, the more often 8 (at 90 BPM in 25 % of the cases, at 150 BPM in 60 %).
@@ -18,6 +18,13 @@ function next(n){
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
   pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
+  // The two transitions of the tube looks (core.js: zapEnv, tuneEnv), not for people who asked for reduced motion. The zap, every other time: not in calm passages or the dark mood (it is
+  // a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line. The tune takes its place in the calm passages and the dark mood, comes now and
+  // then otherwise, and takes at most eight beats.
+  zapAt=zapOn=zapDry=0;if(RETRO&&post&&RTL(lkm)&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<.5){tk=7;zapLast=last;zapAt=mid?tl/2:0}
+    else if(!fast&&Math.random()<(quiet||dk>.5?.5:.15)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
+  }
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
 const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore()};
@@ -25,7 +32,7 @@ const show=(i,a,s)=>{x.save();x.scale(ts=s,s);x.globalAlpha=a;SC[i]();x.restore(
 // Techno strobes: a lamp above the picture fires on the beat, but only in runs: through the last bar of every four, and for two bars after the song steps up
 // (there it replaces the white flash of the other moods). Each flash comes from the next of four lamps. Never more than three a second (mkStrobe),
 // none for people who asked their system for reduced motion, none before the fog is in. b: the beat number. (The limiter runs on the wall clock, not the song's.)
-const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
+const flash=b=>{if(tca>.8&&(b%16>=12||bp>=sbu&&bp-sbu<8)&&!matchMedia('(prefers-reduced-motion: reduce)').matches&&!(tk==7&&prev>=0&&!zapOn&&sw+zapAt-tt<.4)&&strobe(last/1e3,1)){stb=1;sbx=[.2,.8,.4,.6][sbn++&3]}};
 function frame(now){
   requestAnimationFrame(frame);
   const pf0=performance.now();fa+=(now-last)/1e3;fn++;fw=max(fw,now-last);
@@ -122,15 +129,22 @@ function frame(now){
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
     const up=arm[1]>0,a=min(1,abs(arm[1]));
     if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6)sub=max(sub,a)}
-    if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1));tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
+    if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1),0,1);tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
     arm=0;
   }
   bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
-  if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next();
-  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1; // lf: how far the look has faded over from the old scene's to the new one's
-  QS=qm?1e9:QL[lv]*(p<1&&prev>=0?.5:1); // pixel budget of the shader scenes; halved while two scenes run at once in a transition
+  if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
+  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1;
+  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt){ // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
+    if(!zapOn){zapOn=1;if(!strobe(last/1e3,1))zapDry=1}
+    ZP=zapEnv(t-sw-zapAt,min(1.2,max(.72,120/(BPM||120))),.3+.6*(ta*7.3%1),ta%.2>.1?.2:-.2).concat(0,0,0,0,0,0);if(zapDry)ZP[0]=0;
+  }else if(tk==8&&prev>=0&&p<1){ // the tune: the bars follow bass and middle, slowly (they are wide: no pumping), the lines sway, the fine pattern squirms with the bass
+    zb1+=(min(1,Math.sqrt(max(0,B[1]))*1.2)-zb1)*min(1,dt*4);zb2+=(min(1,Math.sqrt(max(0,B[NB>>2]))*1.2)-zb2)*min(1,dt*4); // (the root: quiet music still shows, silence does not)
+    ZP=tuneEnv(p);ZP[2]*=sin(t*11);ZP[10]=ZP[8]*.16*zb2;ZP[8]*=.28*zb1;ZP[11]=zb1*.5;
+  } // lf: how far the look has faded over from the old scene's to the new one's
+  QS=qm?1e9:QL[lv]*(p<1&&prev>=0&&tk<7?.5:1); // pixel budget of the shader scenes; halved while two scenes run at once in a transition
 
   // flow: the scenes don't run on the wall clock but on one that speeds up and slows down with the slow swell of the music (es: the level over the
   // last ~2 s, relative to the whole song). So everything streams along with the song without snapping to beats; slower and heavier in the dark mood.
@@ -155,7 +169,7 @@ function frame(now){
     x.fillRect(S[i]/z*F,Y,s,s);
   }
 
-    if(p<1&&prev>=0&&TR){ // 3D: the old scene keeps running in its own render target (with its own trails) and is the picture on the tiles in front of the new one
+    if(p<1&&prev>=0&&TR&&tk<7){ // (the zap is a cut: the new scene from the first frame, the rest happens in the tube, retro.js) // 3D: the old scene keeps running in its own render target (with its own trails) and is the picture on the tiles in front of the new one
       const pre=()=>{x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='rgba(0,0,10,.4)';x.fillRect(0,0,W,H);x.globalCompositeOperation='lighter';x.translate(W/2,H/2);x.rotate(roll)};
       const LK=look;x.save();x.use(OLD);XS=.5;x.setTransform(XS,0,0,XS,0,0);pre();look=pl;show(prev,1,cz);look=LK;XS=1; // (solid is drawn by the scenes themselves, so the old scene keeps its own look)
       if(tk==5){ // cube: the new scene, too, runs in a target of its own (full size, it ends up filling the screen) and both are faces of the cube
@@ -163,7 +177,7 @@ function frame(now){
         TR.cube(q,scn&1?1:-1);cub=1;
       }else{x.use(MAIN);x.restore();show(cur,1,cz);tk==6?TR.rain(p):TR.draw(p,tk)}
     }
-  else if(p<1&&prev>=0){
+  else if(p<1&&prev>=0&&tk<7){
     // six wipes, picked at random: the new scene is drawn inside a growing shape, the old one outside it, and the edge glows
     const s=hypot(W,H),A=new Path2D,O=new Path2D,n=10,c=s/n;
     if(tk==0)A.arc(0,0,q*s*.51,0,TAU); // iris
@@ -176,7 +190,7 @@ function frame(now){
     x.save();x.clip(O,'evenodd');show(prev,1,1);x.restore();
     x.save();x.clip(A);show(cur,1,cz);x.restore();
     x.strokeStyle=hs(hue,1-q,80);x.lineWidth=3*D;x.stroke(A);
-  }else show(cur,1,cz);
+  }else show(tk>6&&prev>=0&&(tk==7?p*tl<zapAt:p<.5)?prev:cur,1,cz); // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
   if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23){ // (not the race and the ring world: they carry text; not the black hole: it looks wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
     const mi=1+(scn%6==1),src=()=>{if(!GX)return c;const S=x.lo(W,H);x.copy(MAIN,S);return S}; // WebGL: a copy of the frame as it is now
     x.save();x.globalAlpha=ma;x.globalCompositeOperation='source-over';x.setTransform(-1,0,0,1,W,0);x.drawImage(src(),0,0,W/2,H,0,0,W/2,H);

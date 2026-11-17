@@ -6,7 +6,7 @@ eighties and early nineties. Drop a song on the page and it plays it with
 world built from the song itself, a dance floor and more.
 
 No server, no install, no assets: everything is code in `index.html`
-(about 250 KB).
+(about 265 KB).
 
 <img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
 
@@ -38,6 +38,11 @@ pulses then sit on the beat instead of chasing it.
   hold-and-modify colours with their colour fringes, afterglow, scan lines,
   a phosphor mask and curved glass, one of them at 384 x 288 and two
   interlaced.
+- **Changing the channel** in the tube looks: a scene change can come as a
+  zap (a burst of snow, the new picture rolls into place, colour arrives
+  last) or as slow tuning from one station to the next (the sound gets into
+  the picture as bars and a fine pattern, the colour drops out, snow, and
+  the new scene comes in soft and grey until the set locks on to it).
 - **Title and artist** from the file's tags (ID3v2 in an MP3, the iTunes
   tags in an MP4 or M4A): the scroller opens with them when the song starts
   and brings them again on every round; the dark mood, which has no
@@ -72,8 +77,9 @@ pulses then sit on the beat instead of chasing it.
 
 This is a music visualiser: it pulses and flashes with the beat. The strobes
 of the techno mood are limited to three flashes a second and are off when the
-system asks for reduced motion, and the interlaced looks cap how far a line
-may dim between frames. That is care taken, not a guarantee: if you are
+system asks for reduced motion, the interlaced looks cap how far a line
+may dim between frames, and the snow of a channel zap counts as one of those
+three flashes (zap and tuning are left out under reduced motion). That is care taken, not a guarantee: if you are
 sensitive to flashing light, be careful.
 
 ## Requirements
@@ -89,7 +95,7 @@ The page is built from the files in `src/`:
 
 ```
 node build.mjs    # pours src/ into index.html
-node test.mjs     # builds, then checks syntax, beat and tempo detection, song sections, the tag reader, the flash limits
+node test.mjs     # builds, then checks syntax, beat and tempo detection, song sections, the tag reader, the flash limits, the channel-change envelopes
 ```
 
 Edit only in `src/`; `index.html` is generated. Node is the only thing needed
