@@ -81,6 +81,11 @@ if (process.argv[3]) { // node test.mjs track.f32 map.bin : song map of a real t
 // interlaced retro tube: a line that waits for its field must never dim by more than 15 % in one frame, at any frame rate; a long gap clears the tube
 const glow = eval(html.match(/glow=(\(d,tau,il\)=>.*?);\n/)[1]);
 for (const tau of [.05, .08, .12, .15]) { for (let d = 1 / 144; d <= .25; d += .002) assert(glow(d, tau, 1) >= .85, `glow ${d} ${tau}`); assert.equal(glow(.3, tau, 1), 0); assert.equal(glow(.3, tau, 0), 0); }
+// the tube's headroom follows the strength of its phosphor strips: the brightest spot (two scan lines of full white overlapping on a lit strip that also sits in the bright part of
+// its slot) must still fit into the canvas at every setting of the V key, and the shipped values must be ones the keys X and V can come back to
+{ const [, f, m0, b0] = html.match(/const rhg=(.*?);let RML=([\d.]+),RHB=([\d.]+),RHG=rhg\(RML\)/), rhg = eval(f), stp = (v, n) => Math.abs(v * n - Math.round(v * n)) < 1e-9;
+  assert(m0 >= 1 && m0 <= 3 && stp(m0, 10) && b0 >= .8 && b0 <= 2 && stp(b0, 20), 'tube settings as shipped');
+  for (let m = 1; m <= 3.001; m += .1) assert((Math.sqrt(1.385 * 1.1 * m) + .012) / rhg(m) < 1.001, 'tube headroom at ' + m); }
 assert(Math.abs(glow(1 / 60, .12, 0) - .87) < .01); assert.equal(glow(NaN, .12, 1), 0);
 // dimming before a big step up: it must count beats. A step at 10.3 s on a grid that starts at .25 s falls on beat 20 at 120 BPM: nothing 8 beats before, half way 4 before, full on the beat.
 // The same in seconds at 90 BPM (beat 15 at 10.25 s) must take longer; without a tempo it is the last 2 s

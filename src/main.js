@@ -232,11 +232,13 @@ function frame(now){
   }
   if(POST)POST.draw();
   if(GX)x.use(SCR); // the two overlays go straight onto the screen, after the post pass: no look, glow or grain touches them
-  const oa=XDR&&post&&RTL(look)?1/RHG/RHB:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
-  if(now<inf){ // frame rate, resolution, quality mode
-    x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
+  const th=XDR&&post&&RTL(look),oa=th?1/RHG/RHB:1; // (the retro tubes in real HDR: the whole canvas is turned up afterwards, so the writing is drawn that much darker and comes out white, not glaring)
+  if(now<inf||now<tin){ // frame rate, resolution, quality mode; and for a few seconds after X or V what the tube is set to
+    x.save();x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='source-over';x.font=`bold ${H*.025}px monospace`;x.textAlign='right';
     const s=`${fps.toFixed(0)} FPS   SLOWEST FRAME ${wst.toFixed(0)} MS   ${W} x ${H}   ${qm?RN[qm-1]+' FIXED':'STEADY 60: '+(QL[lv]*100|0)+' % OF THE PIXELS'}   LOOK: ${LOOKS()[look]}   VOLUME ${vol*100|0} %   SYNC: AUDIO OUT ${lat*1e3|0} MS, TRIM ${trim*1e3|0} MS`;
-    const tw=min(W*.96,x.measureText(s).width);x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03,tw+H*.04,H*.045);x.globalAlpha=oa;x.fillStyle='#fff';x.fillText(s,W*.985,H*.062,W*.96);x.restore();
+    [now<inf&&s,now<tin&&`TUBE   BRIGHTNESS ${RHB.toFixed(2)} (X)   STRIPS ${RML.toFixed(1)} (V)   WITH SHIFT: LESS   `+(th?`BRIGHTEST SPOT ${tpk().toFixed(1)} x WHITE`:RTL(look)&&post?'NO REAL HDR HERE: BRIGHTNESS DOES NOTHING, STRIPS ONLY CUT OFF EARLIER':'ONLY IN THE TUBE LOOKS (K)')].filter(Boolean).forEach((s,i)=>{
+      const tw=min(W*.96,x.measureText(s).width),y=H*.05*i;x.globalAlpha=1;x.fillStyle='#000a';x.fillRect(W*.985-tw-H*.02,H*.03+y,tw+H*.04,H*.045);x.globalAlpha=oa;x.fillStyle='#fff';x.fillText(s,W*.985,H*.062+y,W*.96)});
+    x.restore();
   }
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
@@ -244,7 +246,7 @@ function frame(now){
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
-      [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['H / ESC','THIS LIST']],
+      [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['X AND V','TUBE LOOKS: BRIGHTNESS (REAL HDR ONLY), PHOSPHOR STRIPS     SHIFT: LESS     NOW: '+RHB.toFixed(2)+', '+RML.toFixed(1)],['H / ESC','THIS LIST']],
       fz=min(H*.027,W*.0125),lh=fz*1.55,pw=min(W*.96,fz*78),ph=lh*(L.length+1.6),px=(W-pw)/2,py=(H-ph)/2;
     x.save();x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000d';x.fillRect(px,py,pw,ph);x.globalAlpha=oa;x.font=`bold ${fz}px monospace`;
     L.forEach(([k,d],i)=>{x.fillStyle=hs(hue+i*14,1,72);x.fillText(k,px+fz*1.5,py+lh*(i+1.4));x.fillStyle='#fff';x.fillText(d,px+fz*10,py+lh*(i+1.4),pw-fz*11.5)});

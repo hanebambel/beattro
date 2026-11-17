@@ -65,6 +65,7 @@ pulses then sit on the beat instead of chasing it.
 | `P` | glow and lens effects on / off |
 | `I` | frame rate display |
 | `,` `.` | picture earlier / later (sync), in steps of 10 ms |
+| `X` `V` | tube looks: brightness (real HDR only), strength of the phosphor strips (with `Shift`: less); back to normal on reload |
 | `H` | this list, with the current settings |
 
 ## Flashing lights

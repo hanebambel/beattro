@@ -3,6 +3,7 @@
 #   n=N        step N frames synchronously before the picture is taken      dtm=MS   length of one step (default 100)
 #   seq=time:scene:transition,...   switch scenes at these times (transition -1 = whatever the page picks)
 #   lock help info                  hold the scene / show the key list / show the frame rate line
+#   keys=KeyV,+KeyX,...             press these keys before the first frame (+ = with shift)
 #   flk        no picture: print the mean and largest frame-to-frame change over the 12 frames after n (0..255)
 #   probe=JS   no picture: print the value of a JavaScript expression after the n frames (URL-encoded; NN = n, STP = the step, frame(ms) steps on)
 # plus everything the page itself understands: fake T= look= mood= max lv= ...
@@ -20,7 +21,7 @@ def rep(a,b,n=-1):
 rep("requestAnimationFrame(frame)","(NN||requestAnimationFrame(frame))")
 rep("<script>","<script>var NN=+(/n=([0-9]+)/.exec(location.search)||[])[1]||0,SEQ=(/seq=([0-9.,:-]+)/.exec(location.search)||[,''])[1].split(',').filter(Boolean).map(q=>q.split(':').map(Number));\n",1)
 rep("  psc=sc;\n","  psc=sc;\n  if(SEQ[0]&&t>=SEQ[0][0]){next(SEQ[0][1]);if(SEQ[0][2]>=0)tk=SEQ[0][2];ta=.5;SEQ.shift()}\n")
-rep("</script>","if(/lock/.test(location.search))lock=1;if(/help/.test(location.search))help=1;if(/info/.test(location.search))inf=1e12;\nconst STP=+(/dtm=([0-9.]+)/.exec(location.search)||[,100])[1];for(let i=1;i<=NN;i++)frame(i*STP);if(/flk/.test(location.search)&&gl){let pv,sum=0,mx=0,k=0;for(let i=1;i<=12;i++){frame((NN+i)*STP);gl.bindFramebuffer(gl.FRAMEBUFFER,null);const b=new Uint8Array(W*H*4);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,b);if(pv){let d=0;for(let j=0;j<b.length;j+=16)d+=Math.abs(b[j]-pv[j])+Math.abs(b[j+1]-pv[j+1])+Math.abs(b[j+2]-pv[j+2]);d/=b.length/16*3;sum+=d;mx=Math.max(mx,d);k++}pv=b}document.title='FLK mean '+(sum/k).toFixed(2)+' max '+mx.toFixed(2)}const PRB=/probe=([^&#]+)/.exec(location.search);if(PRB)document.title='PROBE '+eval(decodeURIComponent(PRB[1]));\n</script>")
+rep("</script>","if(/lock/.test(location.search))lock=1;if(/help/.test(location.search))help=1;if(/info/.test(location.search))inf=1e12;(/keys=([\\w,+]*)/.exec(location.search)||[,''])[1].split(',').filter(Boolean).forEach(k=>onkeydown({code:k.replace('+',''),shiftKey:k[0]=='+'}));\nconst STP=+(/dtm=([0-9.]+)/.exec(location.search)||[,100])[1];for(let i=1;i<=NN;i++)frame(i*STP);if(/flk/.test(location.search)&&gl){let pv,sum=0,mx=0,k=0;for(let i=1;i<=12;i++){frame((NN+i)*STP);gl.bindFramebuffer(gl.FRAMEBUFFER,null);const b=new Uint8Array(W*H*4);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,b);if(pv){let d=0;for(let j=0;j<b.length;j+=16)d+=Math.abs(b[j]-pv[j])+Math.abs(b[j+1]-pv[j+1])+Math.abs(b[j+2]-pv[j+2]);d/=b.length/16*3;sum+=d;mx=Math.max(mx,d);k++}pv=b}document.title='FLK mean '+(sum/k).toFixed(2)+' max '+mx.toFixed(2)}const PRB=/probe=([^&#]+)/.exec(location.search);if(PRB)document.title='PROBE '+eval(decodeURIComponent(PRB[1]));\n</script>")
 open(O+'/dbg.html','w').write(s)
 if len(sys.argv)<2:sys.exit()
 q=sys.argv[1];name=(sys.argv[2:3]+['shot'])[0];w,h=(sys.argv[3:5]+['1280','720'])[:2]
