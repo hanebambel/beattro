@@ -2,11 +2,12 @@
 
 A music visualiser in one HTML file, in the style of the demoscene of the late
 eighties and early nineties. Drop a song on the page and it plays it with
-39 scenes that follow the beat: tunnels, copper bars, fractals, a race, a ring
-world built from the song itself, a dance floor and more.
+40 scenes that follow the beat: tunnels, copper bars, fractals, a race, a ring
+world built from the song itself, a dance floor, an endless zoom through the
+suits of a deck of cards and more.
 
 No server, no install, no assets: everything is code in `index.html`
-(about 265 KB).
+(about 270 KB).
 
 <img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
 
@@ -20,7 +21,8 @@ The title, the dance floor and the ring world in one of the retro tube looks
 ## Try it
 
 1. Download `index.html` and open it in a browser.
-2. Drop an audio or video file on the page, or press `O` to pick one.
+2. Drop one or more audio or video files on the page, or press `O` to pick
+   them. Several files play one after the other, in the order of their names.
    `BeautifulSorrowMaster.m4a` in this repository is there to try it with.
 3. Click or press `Space`.
 
@@ -38,11 +40,13 @@ pulses then sit on the beat instead of chasing it.
   hold-and-modify colours with their colour fringes, afterglow, scan lines,
   a phosphor mask and curved glass, one of them at 384 x 288 and two
   interlaced.
-- **Changing the channel** in the tube looks: a scene change can come as a
-  zap (a burst of snow, the new picture rolls into place, colour arrives
-  last) or as slow tuning from one station to the next (the sound gets into
-  the picture as bars and a fine pattern, the colour drops out, snow, and
-  the new scene comes in soft and grey until the set locks on to it).
+- **Changing the channel**: a scene change can come as a zap on an old
+  television (a burst of snow, the new picture rolls into place, colour
+  arrives last) or as slow tuning from one station to the next (the sound
+  gets into the picture as bars and a fine pattern, the colour drops out,
+  snow, and the new scene comes in soft and grey until the set locks on to
+  it). In the tube looks that is the usual way to change, in the other
+  looks it happens now and then, on the plain picture.
 - **Title and artist** from the file's tags (ID3v2 in an MP3, the iTunes
   tags in an MP4 or M4A): the scroller opens with them when the song starts
   and brings them again on every round; the dark mood, which has no
@@ -56,11 +60,12 @@ pulses then sit on the beat instead of chasing it.
 | Key | |
 |---|---|
 | `Space` | play / pause |
-| `O` | open a file |
+| `O` | open files |
 | `F` | fullscreen |
 | `Up` `Down` | volume |
 | `N` | next scene (random) |
 | `Left` `Right` | previous / next scene in order |
+| `Shift` + `Left` `Right` | previous / next song of the list (also the media keys) |
 | `1`-`9`, `0` | scenes 1 to 10, with `Shift` 11 to 20 |
 | `R` `W` `G` `D` `T` `B` `J` `S` `U` `C` | race, ring world, glow forest, dance, title, light bikes, jump and run, attack run, the dive, dance floor |
 | `L` | hold the scene |

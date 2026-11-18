@@ -137,4 +137,9 @@ assert(pdm(10.3, .25 + 7 / 1.5, .25, 90) == 0 && near(pdm(10.3, .25 + 11 / 1.5, 
 // looks: the K key steps through them plus "with the scenes"; the four places that know how many there are must agree (a wrong default boots the page in the last look)
 const lm = +html.match(/lkm=\(lkm\+1\)%(\d+)/)[1];
 for (const q of [`look=([0-${lm - 1}])`, `||[,${lm - 1}])[1]`, `look=lkm>${lm - 2}?alk:lkm`, `if(lkm<${lm - 1})pl=look`]) assert(html.includes(q), `look count: ${q}`);
+// the playlist: only audio and video files (those of unknown type by their ending, so no folder), in the order of their names, numbers counted as numbers
+{ const plist = eval(html.match(/const plist=(.*);\n/)[1]), f = (name, type) => ({ name, type });
+  assert.deepEqual(plist([f('10 c.mp3', 'audio/mpeg'), f('cover.jpg', 'image/jpeg'), f('2 b.flac', ''), f('1 a.mp4', 'video/mp4'), f('notes.txt', 'text/plain'), f('Album', ''), f('disc.cue', '')]).map(q => q.name), ['1 a.mp4', '2 b.flac', '10 c.mp3']);
+  for (const q of ['if(pli<PL.length-1)track(pli+1,1)', "e.shiftKey?skip(1):next("]) assert(html.includes(q), `playlist: ${q}`); }
+assert(html.includes('if(cur==SUITS)alk=0'), 'the suits scene keeps the normal look when looks change with the scenes (card colours only)');
 console.log('ok: 20 beats in 10 s @ 120 BPM; kick detector ignores the bass line, catches 20/20 kicks; song map finds the tone; sections, tempo and kick pattern found');

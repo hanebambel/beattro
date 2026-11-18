@@ -22,7 +22,7 @@ async function analyse(file){
       spectro(d,2048>>k,E,c,min(SN,c+48));
       for(let q=c;q<c+48&&q<SN;q+=4){for(let b=0;b<NB;b++)pk=max(pk,E[q*NB+b]);spoke(q,b=>max(0,1+Math.log10(E[q*NB+b]/pk+1e-9)/2.5))}
       apr=c/SN;sst='ANALYSING THE SONG '+(apr*100|0)+' %';
-      await new Promise(requestAnimationFrame);
+      await new Promise(r=>document.hidden?setTimeout(r):requestAnimationFrame(r)); // (a hidden window gets no frames: the next song of a list must still get analysed and start)
       if(g!=sgen)return;
     }
     songMap(E,1);sect(sdu=ab.duration);

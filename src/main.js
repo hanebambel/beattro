@@ -11,19 +11,19 @@ function next(n,mid,fast){ // mid: the transition is centred on the bar line (it
   prev=cur;cur=n??pick(quiet?1:undefined);
   bag=bag.filter(i=>i!=cur);qbag=qbag.filter(i=>i!=cur);sw=tt;sb=beats;scn++;
   // how long the new scene stays: 8 or 16 beats, and the faster the song, the more often 8 (at 90 BPM in 25 % of the cases, at 150 BPM in 60 %).
-  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes and the dive 32 beats, the race, the jump & run and the attack run 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
+  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes, the dive and the suits (two levels of its zoom) 32 beats, the race, the jump & run and the attack run 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
   // The transition into it takes a bar (four in the dark mood, but no more than 10 s), at most half of the scene that is leaving. nx = the beat on which the next scene takes over.
-  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
+  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES||cur==SUITS;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
   sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY?48:big?32:rn<.25+.35*fa?8:16;
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
-  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
+  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0];if(cur==SUITS)alk=0; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
-  // The two transitions of the tube looks (core.js: zapEnv, tuneEnv), not for people who asked for reduced motion. The zap, every other time: not in calm passages or the dark mood (it is
-  // a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line. The tune takes its place in the calm passages and the dark mood, comes now and
-  // then otherwise, and takes at most eight beats.
-  zapAt=zapOn=zapDry=0;if(RETRO&&post&&RTL(lkm)&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
-    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<.5){tk=7;zapLast=last;zapAt=mid?tl/2:0}
-    else if(!fast&&Math.random()<(quiet||dk>.5?.5:.15)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
+  // Zap and tune (core.js: zapEnv, tuneEnv; drawn in retro.js): in a tube look the usual way to change the scene, in the other looks they come now and then. Not for people who asked for
+  // reduced motion. The zap: not in calm passages or the dark mood (it is a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line.
+  // The tune takes its place in the calm passages and the dark mood, comes more rarely otherwise, and takes at most eight beats.
+  zapAt=zapOn=zapDry=0;if(RETRO&&ZAPP&&post&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const tub=RTL(lkm);
+    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<(tub?.5:.15)){tk=7;zapLast=last;zapAt=mid?tl/2:0}
+    else if(!fast&&Math.random()<(quiet||dk>.5?tub?.5:.15:tub?.15:.05)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
   }
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
@@ -136,8 +136,8 @@ function frame(now){
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
-  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1;
-  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt){ // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
+  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?tk<7?q:+(tk==7?p*tl>=zapAt:p>=.5):1; // (zap and tune change the look where they change the scene: at the cut, or behind the snow)
+  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt&&t-sw<zapAt+.6){ // (.6 s: it is over by then at any tempo, and the pass that draws it can rest) // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
     if(!zapOn){zapOn=1;if(!strobe(last/1e3,1))zapDry=1}
     ZP=zapEnv(t-sw-zapAt,min(1.2,max(.72,120/(BPM||120))),.3+.6*(ta*7.3%1),ta%.2>.1?.2:-.2).concat(0,0,0,0,0,0);if(zapDry)ZP[0]=0;
   }else if(tk==8&&prev>=0&&p<1){ // the tune: the bars follow bass and middle, slowly (they are wide: no pumping), the lines sway, the fine pattern squirms with the bass
@@ -190,7 +190,7 @@ function frame(now){
     x.save();x.clip(O,'evenodd');show(prev,1,1);x.restore();
     x.save();x.clip(A);show(cur,1,cz);x.restore();
     x.strokeStyle=hs(hue,1-q,80);x.lineWidth=3*D;x.stroke(A);
-  }else show(tk>6&&prev>=0&&(tk==7?p*tl<zapAt:p<.5)?prev:cur,1,cz); // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
+  }else{const old=tk>6&&prev>=0&&p<1&&(tk==7?p*tl<zapAt:p<.5),LK=look;if(old)look=pl;show(old?prev:cur,1,cz);look=LK} // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
   if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23){ // (not the race and the ring world: they carry text; not the black hole: it looks wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
     const mi=1+(scn%6==1),src=()=>{if(!GX)return c;const S=x.lo(W,H);x.copy(MAIN,S);return S}; // WebGL: a copy of the frame as it is now
     x.save();x.globalAlpha=ma;x.globalCompositeOperation='source-over';x.setTransform(-1,0,0,1,W,0);x.drawImage(src(),0,0,W/2,H,0,0,W/2,H);
@@ -255,8 +255,8 @@ function frame(now){
     x.restore();
   }
   if(help){ // H: every key and what it is set to right now
-    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
-      ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
+    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN FILES (OR DROP THEM ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
+      ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['SHIFT+ARROWS','NEXT / PREVIOUS SONG'+(PL.length>1?'     NOW: '+(pli+1)+' OF '+PL.length:'')],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],

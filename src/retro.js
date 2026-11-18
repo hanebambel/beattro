@@ -14,13 +14,24 @@ if(gl&&POST){
   const mk=src=>{const p=gl.createProgram(),f=cmp(gl.FRAGMENT_SHADER,src),L={};gl.attachShader(p,VS);gl.attachShader(p,f);gl.linkProgram(p);
     if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.warn('shader scene off: retro look',gl.getProgramInfoLog(p),gl.getShaderInfoLog(f));return 0}
     p.U=n=>L[n]??=gl.getUniformLocation(p,n);return p};
-  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;uniform vec4 zp,zq,zt,zb;uniform uint zs;out vec4 o;
+  // What an analogue set makes of a signal it has not quite got (the zap and the tune, core.js: zapEnv, tuneEnv), shared by the tube's first pass and by ZAPP below, which lays the same faults
+  // over the plain frame in the looks without a tube. zp: snow, roll, tear, colour; zq: gain, bend, brightness of the snow, how much afterglow stays; zt: blur, fine pattern, colour speckle,
+  // time; zb: the two bars, how far the pattern is pushed; zs: a new number every frame. p: which cell of the raster, u: how far along the line, vy: how far up the picture, rows: lines.
+  const ZG=`uniform vec4 zp,zq,zt,zb;uniform uint zs;
+float hsh(vec2 p){uvec3 v=uvec3(uint(p.x),uint(p.y),zs)*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;return float(v.x>>8u)/16777216.;} // whole numbers in, 0..1 out: the same grain on every graphics card, new every frame
+vec3 sig(vec3 s,vec2 p,float u,float vy,float rows){
+  vec2 cq=floor(p/vec2(4,1));vec3 cn=vec3(hsh(cq+vec2(9,0)),hsh(cq+vec2(40,0)),hsh(cq+vec2(77,0)));
+  s=max(mix(vec3(dot(s,vec3(.3,.59,.11))),s,zp.w)+zt.z*(cn-dot(cn,vec3(.3,.59,.11))),0.); // colour as far as the set still finds it, speckled where it is weak (colour has a quarter of the picture's sharpness along the line: so has its noise, and being colour only it leaves the brightness alone)
+  return max(s+(s+.15)*(zt.y*sin(6.2832*(u*56.+vy*rows*.31+zb.z))+zb.x*sin(6.2832*(vy*1.5+zt.w*.37))+zb.y*sin(6.2832*(vy*3.7-zt.w*.53))),0.); // the sound in the picture: the beat between sound and colour carrier, 56 slanted stripes to the line, and the sound itself as bars, wide ones for the bass, narrower ones above (added to the signal, so they show in the dark parts too)
+}
+float snw(vec2 p){float n=mix(hsh(p),hsh(p+vec2(1,0)),.3);return n*n*zq.z;} // snow: every line and every frame new, along the line a little smeared; mostly dark with bright specks`,
+    zu=(P,gw)=>{gl.uniform4f(P.U('zp'),ZP[0],ZP[1],ZP[2],ZP[3]);gl.uniform4f(P.U('zq'),ZP[4],ZP[5],XDR&&XDR.on?.66:1.1,gw);gl.uniform4f(P.U('zt'),ZP[6],ZP[7],ZP[9],t%997);gl.uniform4f(P.U('zb'),ZP[8],ZP[10],ZP[11],0);gl.uniform1ui(P.U('zs'),n&65535)}; // (the snow is held back in real HDR, where the picture can be several times as bright)
+  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;out vec4 o;${ZG}
 vec3 S(float i,float y){return floor(textureLod(X,.5+(vec2((i+.5)/r.x,y)-.5)*cp,ld+zt.x).rgb*qn+.5)/qn;} // the frame at pixel i of this line, in the mode's steps per colour
-float hsh(vec2 p){uvec3 v=uvec3(uint(p.x),uint(p.y),zs)*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;return float(v.x>>8u)/16777216.;} // whole numbers in, 0..1 out: the same grain on every graphics card, new every frame (zs)
 void main(){
   vec2 p=floor(gl_FragCoord.xy);float y=(p.y+.5)/r.y;vec3 pv=max(texelFetch(PV,ivec2(p),0).rgb*dk-.004,0.); // what still glows here (the small step down: 8 bits would otherwise never quite reach black)
   if(il>=0.&&mod(p.y,2.)!=il){o=vec4(pv,1);return;} // interlaced: this line belongs to the other field, it is not drawn this frame
-  // the zap (core.js: zapEnv): what the set makes of the signal while it finds the new channel. zp: snow, roll, tear, colour; zq: gain, bend, brightness of the snow, how much of the afterglow stays. All of it in whole lines
+  // zap and tune (ZG above): all of it in whole lines
   // and whole pixels of this mode, so the colours replay as they do in a picture that stands. A line is 1.23 pictures wide and a frame 1.08 high: what lies between is black
   float f=1.-y,vy=mod(y+floor(zp.y*1.08*r.y)/r.y,1.08),lw=floor(r.x*1.23),
     px=mod(p.x+floor(r.x*(zp.z*exp(-f/.9)+zq.y*exp((vy-1.)*20.)+(hsh(vec2(0,p.y))-.5)*.1*zp.x*(1.-zp.x)))+2.*lw,lw); // (the last: while snow and picture mix, the noise pulls single lines about)
@@ -32,12 +43,8 @@ void main(){
     s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
   }
   bool on=px<r.x&&vy<1.;s=min(s*zq.x,1.);
-  if(on){ // the tune (core.js: tuneEnv; zt: blur, fine pattern, colour speckle, time; zb: the two bars, how far the pattern is pushed): colour as far as the set still finds it, speckled where it is weak
-    vec2 cq=floor(p/vec2(4,1));vec3 cn=vec3(hsh(cq+vec2(9,0)),hsh(cq+vec2(40,0)),hsh(cq+vec2(77,0)));s=max(mix(vec3(dot(s,vec3(.3,.59,.11))),s,zp.w)+zt.z*(cn-dot(cn,vec3(.3,.59,.11))),0.); // (colour has a quarter of the picture's sharpness along the line: so has its noise, and being colour only it leaves the brightness alone)
-    s=max(s+(s+.15)*(zt.y*sin(6.2832*(px/r.x*56.+vy*r.y*.31+zb.z))+zb.x*sin(6.2832*(vy*1.5+zt.w*.37))+zb.y*sin(6.2832*(vy*3.7-zt.w*.53))),0.); // the sound in the picture: the beat between sound and colour carrier, 56 slanted stripes to the line, and the sound itself as bars, wide ones for the bass, narrower ones above (added to the signal, so they show in the dark parts too)
-  }else s=vec3(0);pv*=on?zq.w:zq.w*.4; // (while the picture rolls, the long afterglow of this look would smear it into a bright blur and fill the black bar: it is cut short for those frames, on the lines that are drawn)
-  float nv=mix(hsh(p),hsh(p+vec2(1,0)),.3); // snow: every line and every frame new, along the line a little smeared; mostly dark with bright specks
-  o=vec4(mix(max(s,pv),vec3(nv*nv*zq.z),zp.x),1); // (the snow does not go through the afterglow: adding up there it would only get brighter and smear)
+  if(on)s=sig(s,p,px/r.x,vy,r.y);else s=vec3(0);pv*=on?zq.w:zq.w*.4; // (while the picture rolls, the long afterglow of this look would smear it into a bright blur and fill the black bar: it is cut short for those frames, on the lines that are drawn)
+  o=vec4(mix(max(s,pv),vec3(snw(p)),zp.x),1); // (the snow does not go through the afterglow: adding up there it would only get brighter and smear)
 }`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a,hs;uniform vec2 ml;out vec4 o;
 vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
 void main(){
@@ -57,13 +64,24 @@ void main(){
   }
   o=vec4(mix(texture(X,q).rgb,c,a)*hs,1); // hs: with real HDR everything is drawn darker here and turned up again afterwards (hdr.js), so the lit phosphor strips can be brighter than white
 }`);
+  const pz=mk(`precision highp float;uniform sampler2D X;uniform vec2 r,rr;uniform float bl;out vec4 o;${ZG}
+void main(){ // the same faults on the plain frame: it stays as sharp as it is, but lines, grain and bar are those of a television picture (rr: 576 lines), whatever the size of the canvas
+  vec2 q=gl_FragCoord.xy/r,p=floor(q*rr);float vy=mod(q.y+floor(zp.y*1.08*rr.y)/rr.y,1.08),
+    px=mod(q.x+zp.z*exp((q.y-1.)/.9)+zq.y*exp((vy-1.)*20.)+(hsh(vec2(0,p.y))-.5)*.1*zp.x*(1.-zp.x)+2.46,1.23);
+  o=vec4(mix(px<1.&&vy<1.?sig(min(textureLod(X,vec2(px,vy),bl).rgb*zq.x,1.),p,px,vy,rr.y):vec3(0),vec3(snw(p)),zp.x),1);
+}`);
   let n=0;const lt=MD.map(()=>0);
+  if(pz)ZAPP=F=>{ // F: the finished frame, as for the tube
+    const rx=floor(576*W/H);gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pz);n++;
+    gl.uniform1i(pz.U('X'),7);gl.uniform2f(pz.U('r'),W,H);gl.uniform2f(pz.U('rr'),rx,576);gl.uniform1f(pz.U('bl'),ZP[6]>0?Math.log2(max(1,W/rx))+ZP[6]:0);zu(pz,1); // (blur: down to the raster first, then as far as the tune asks)
+    gl.drawArrays(gl.TRIANGLES,0,3);gl.activeTexture(gl.TEXTURE0);
+  };
   if(pa&&pb)RETRO=(F,a,m)=>{ // F: the target the post pass has just drawn the frame into; a: how far the look is in (it fades with the scene change); m: which of the modes
     const[RW,RH,qn,il]=MD[m],fld=il&&!matchMedia('(prefers-reduced-motion: reduce)').matches,A=x.lo(RW,RH,0,'r'+(n&1)),B=x.lo(RW,RH,0,'r'+(++n&1)),d=max(0,(last-lt[m])/1e3),tw=min(1,4/3*H/W),th=min(1,W/H*3/4);lt[m]=last;
     gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D); // (unit 7 has the sampler with the blurred copies; the post pass binds its own texture there again next frame)
     gl.activeTexture(gl.TEXTURE14);gl.bindTexture(gl.TEXTURE_2D,B.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,A.fb);gl.viewport(0,0,RW,RH);gl.useProgram(pa);gl.uniform1i(pa.U('X'),7);gl.uniform1i(pa.U('PV'),14);gl.uniform2f(pa.U('r'),RW,RH);gl.uniform2f(pa.U('cp'),tw,th);
-    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1);gl.uniform4f(pa.U('zp'),ZP[0],ZP[1],ZP[2],ZP[3]);gl.uniform4f(pa.U('zq'),ZP[4],ZP[5],XDR&&XDR.on?.66:1.1,ZP[1]||ZP[2]?.45:1);gl.uniform1ui(pa.U('zs'),n&65535);gl.uniform4f(pa.U('zt'),ZP[6],ZP[7],ZP[9],t%997);gl.uniform4f(pa.U('zb'),ZP[8],ZP[10],ZP[11],0); // (the snow is held back in real HDR, where the tube is several times as bright) // (d: since this mode last ran, so nothing stale glows on after the look was away)
+    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1);zu(pa,ZP[1]||ZP[2]?.45:1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindTexture(gl.TEXTURE_2D,A.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);gl.uniform2f(pb.U('ml'),RML,(3-RML)/2);gl.uniform1f(pb.U('hs'),XDR&&RTL(look)?1/RHG:1); // (the same condition that switches the HDR canvas on in main.js, so the two never disagree for a frame)

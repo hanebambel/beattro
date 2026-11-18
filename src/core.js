@@ -78,10 +78,19 @@ const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million 
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
 onresize=size;size();ui.textContent=IDLE;
 
-function load(file){
+// The playlist: every audio or video file that was dropped or picked, in the order of their names (track numbers at the front put an album in order).
+// One of them plays; when it ends the next one is analysed and starts by itself. Shift + left / right arrow and the media keys skip.
+// A file the browser gives no type for counts by its ending (so a folder, a cue sheet or a cover picture is left out).
+// ponytail: a dropped folder is not opened (drop its files); a new drop replaces the list; a broken last file ends the list there. Reading folders (webkitGetAsEntry) and appending if that is missed.
+const plist=l=>[...l].filter(f=>f.type?/^(audio|video)\//.test(f.type):/\.(mp3|m4a|aac|mp4|m4v|mov|flac|wav|aiff?|ogg|opus|webm)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+let PL=[],pli=0,aut=0;
+const track=(i,auto)=>load(PL[pli=i],auto),queue=l=>{const q=plist(l);if(q.length){PL=q;track(0)}else if(l.length&&v.paused)ui.textContent='no song in that\n\ndrop audio or video files\n(not a folder)'},
+  skip=d=>PL.length>1&&track((pli+d+PL.length)%PL.length,!v.paused||aut); // (keeps playing if it was playing, or about to: skipping twice in a row)
+function load(file,auto){ // auto: start by itself once the song is analysed (only after the first start by hand: a browser lets a page play only then)
   if(!file)return;
-  v.pause();URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(file);
-  beat=mkBeat(...BEAT);subBeat=mkBeat(...KICK);beats=sb=0;pk=1e-3;PB.fill(1e-4);ui.textContent=file.name+'\n\nclick / space to start';analyse(file);
+  aut=auto=!!(auto&&ac);v.pause();URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(file);
+  beat=mkBeat(...BEAT);subBeat=mkBeat(...KICK);beats=sb=0;pk=1e-3;PB.fill(1e-4);ui.textContent=file.name+(PL.length>1?`\n\n${pli+1} OF ${PL.length}`:'')+(auto?'':'\n\nclick / space to start');
+  const a=analyse(file),g=sgen;if(auto)a.then(()=>g==sgen&&v.paused&&play());
 }
 function go(){ // must run inside a user gesture: starts audio + fullscreen
   if(!v.src)return f.click();
@@ -94,15 +103,19 @@ function go(){ // must run inside a user gesture: starts audio + fullscreen
     const lp=[0,0].map(()=>{const f=ac.createBiquadFilter();f.frequency.value=90;return f});
     an.connect(lp[0]);lp[0].connect(lp[1]);an2=ac.createAnalyser();an2.fftSize=1024;lp[1].connect(an2);w2=new Float32Array(1024);
   }
+  play();fs(1);
+}
+function play(){
   if(v.currentTime<.5&&!location.hash){quiet=sdu&&KD[0]<1;next()} // a song starts with a scene drawn from the bag, not always with the tunnel of the waiting screen
-  ac.resume();v.play();fs(1);
+  ac.resume();v.play()?.catch(()=>{if(v.paused&&!/click/.test(ui.textContent))ui.textContent+='\n\nclick / space to start'}); // (the browser did not let it start by itself)
 }
 const fs=on=>document.fullscreenElement?on||document.exitFullscreen():document.documentElement.requestFullscreen?.()?.catch(()=>{});
-f.onchange=()=>load(f.files[0]);
+f.onchange=()=>queue(f.files);
 ui.onclick=c.onclick=go;
 ondragover=e=>e.preventDefault();
-ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
-onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='ArrowUp'||e.code=='ArrowDown'){vol=min(1,max(0,Math.round(vol*20+(e.code=='ArrowUp'?1:-1))/20));if(vg)vg.gain.value=vol*vol;try{localStorage.vol=vol}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){const w=RTL(lkm);lkm=(lkm+1)%10;if(w!=RTL(lkm))size();inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyX'||e.code=='KeyV'){const d=e.shiftKey?-1:1;if(e.code=='KeyX')RHB=min(2,max(.8,Math.round(RHB*20+d)/20));else RHG=rhg(RML=min(3,max(1,Math.round(RML*10+d)/10)));tin=performance.now()+5e3}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
-v.onended=()=>ui.textContent='click / space to replay\n\nor drop another file';
-v.onerror=()=>{v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
+ondrop=e=>{e.preventDefault();queue(e.dataTransfer.files)};
+try{navigator.mediaSession.setActionHandler('nexttrack',()=>skip(1));navigator.mediaSession.setActionHandler('previoustrack',()=>skip(-1))}catch(e){}
+onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')e.shiftKey?skip(1):next((cur+1)%SC.length);if(e.code=='ArrowLeft')e.shiftKey?skip(-1):next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='ArrowUp'||e.code=='ArrowDown'){vol=min(1,max(0,Math.round(vol*20+(e.code=='ArrowUp'?1:-1))/20));if(vg)vg.gain.value=vol*vol;try{localStorage.vol=vol}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){const w=RTL(lkm);lkm=(lkm+1)%10;if(w!=RTL(lkm))size();inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyX'||e.code=='KeyV'){const d=e.shiftKey?-1:1;if(e.code=='KeyX')RHB=min(2,max(.8,Math.round(RHB*20+d)/20));else RHG=rhg(RML=min(3,max(1,Math.round(RML*10+d)/10)));tin=performance.now()+5e3}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
+v.onended=()=>{if(pli<PL.length-1)track(pli+1,1);else if(PL.length>1)track(0);else ui.textContent='click / space to replay\n\nor drop another file'}; // the next of the list; after the last one the first waits to be started
+v.onerror=()=>{if(pli<PL.length-1)return track(pli+1,aut);v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
 

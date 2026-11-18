@@ -10,7 +10,7 @@ color:#fff;font:bold 4vmin monospace;letter-spacing:.2em;text-shadow:0 0 2vmin #
 </style>
 <canvas id=c></canvas>
 <div id=ui></div>
-<input id=f type=file accept="audio/*,video/*" hidden>
+<input id=f type=file accept="audio/*,video/*" multiple hidden>
 <video id=v hidden playsinline></video>
 <script>
 // Beat = jump in bass energy (flux) of at least m and k times its running average, min. g seconds apart. Checked by test.mjs.
@@ -93,10 +93,19 @@ const size=()=>{ // steady mode never draws more than a 4K picture (8.3 million 
   D=qm?min(devicePixelRatio||1,RES[qm-1]/innerHeight):min(devicePixelRatio||1,1.5,Math.sqrt(8.3e6/iw/innerHeight))*Math.sqrt(QL[lv]);W=c.width=iw*D|0;H=c.height=innerHeight*D|0;if(GX)GX.resize()};
 onresize=size;size();ui.textContent=IDLE;
 
-function load(file){
+// The playlist: every audio or video file that was dropped or picked, in the order of their names (track numbers at the front put an album in order).
+// One of them plays; when it ends the next one is analysed and starts by itself. Shift + left / right arrow and the media keys skip.
+// A file the browser gives no type for counts by its ending (so a folder, a cue sheet or a cover picture is left out).
+// ponytail: a dropped folder is not opened (drop its files); a new drop replaces the list; a broken last file ends the list there. Reading folders (webkitGetAsEntry) and appending if that is missed.
+const plist=l=>[...l].filter(f=>f.type?/^(audio|video)\//.test(f.type):/\.(mp3|m4a|aac|mp4|m4v|mov|flac|wav|aiff?|ogg|opus|webm)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+let PL=[],pli=0,aut=0;
+const track=(i,auto)=>load(PL[pli=i],auto),queue=l=>{const q=plist(l);if(q.length){PL=q;track(0)}else if(l.length&&v.paused)ui.textContent='no song in that\n\ndrop audio or video files\n(not a folder)'},
+  skip=d=>PL.length>1&&track((pli+d+PL.length)%PL.length,!v.paused||aut); // (keeps playing if it was playing, or about to: skipping twice in a row)
+function load(file,auto){ // auto: start by itself once the song is analysed (only after the first start by hand: a browser lets a page play only then)
   if(!file)return;
-  v.pause();URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(file);
-  beat=mkBeat(...BEAT);subBeat=mkBeat(...KICK);beats=sb=0;pk=1e-3;PB.fill(1e-4);ui.textContent=file.name+'\n\nclick / space to start';analyse(file);
+  aut=auto=!!(auto&&ac);v.pause();URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(file);
+  beat=mkBeat(...BEAT);subBeat=mkBeat(...KICK);beats=sb=0;pk=1e-3;PB.fill(1e-4);ui.textContent=file.name+(PL.length>1?`\n\n${pli+1} OF ${PL.length}`:'')+(auto?'':'\n\nclick / space to start');
+  const a=analyse(file),g=sgen;if(auto)a.then(()=>g==sgen&&v.paused&&play());
 }
 function go(){ // must run inside a user gesture: starts audio + fullscreen
   if(!v.src)return f.click();
@@ -109,17 +118,21 @@ function go(){ // must run inside a user gesture: starts audio + fullscreen
     const lp=[0,0].map(()=>{const f=ac.createBiquadFilter();f.frequency.value=90;return f});
     an.connect(lp[0]);lp[0].connect(lp[1]);an2=ac.createAnalyser();an2.fftSize=1024;lp[1].connect(an2);w2=new Float32Array(1024);
   }
+  play();fs(1);
+}
+function play(){
   if(v.currentTime<.5&&!location.hash){quiet=sdu&&KD[0]<1;next()} // a song starts with a scene drawn from the bag, not always with the tunnel of the waiting screen
-  ac.resume();v.play();fs(1);
+  ac.resume();v.play()?.catch(()=>{if(v.paused&&!/click/.test(ui.textContent))ui.textContent+='\n\nclick / space to start'}); // (the browser did not let it start by itself)
 }
 const fs=on=>document.fullscreenElement?on||document.exitFullscreen():document.documentElement.requestFullscreen?.()?.catch(()=>{});
-f.onchange=()=>load(f.files[0]);
+f.onchange=()=>queue(f.files);
 ui.onclick=c.onclick=go;
 ondragover=e=>e.preventDefault();
-ondrop=e=>{e.preventDefault();load(e.dataTransfer.files[0])};
-onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')next((cur+1)%SC.length);if(e.code=='ArrowLeft')next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='ArrowUp'||e.code=='ArrowDown'){vol=min(1,max(0,Math.round(vol*20+(e.code=='ArrowUp'?1:-1))/20));if(vg)vg.gain.value=vol*vol;try{localStorage.vol=vol}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){const w=RTL(lkm);lkm=(lkm+1)%10;if(w!=RTL(lkm))size();inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyX'||e.code=='KeyV'){const d=e.shiftKey?-1:1;if(e.code=='KeyX')RHB=min(2,max(.8,Math.round(RHB*20+d)/20));else RHG=rhg(RML=min(3,max(1,Math.round(RML*10+d)/10)));tin=performance.now()+5e3}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
-v.onended=()=>ui.textContent='click / space to replay\n\nor drop another file';
-v.onerror=()=>{v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
+ondrop=e=>{e.preventDefault();queue(e.dataTransfer.files)};
+try{navigator.mediaSession.setActionHandler('nexttrack',()=>skip(1));navigator.mediaSession.setActionHandler('previoustrack',()=>skip(-1))}catch(e){}
+onkeydown=e=>{if(e.code=='Space')go();if(e.code=='KeyF')fs();if(e.code=='KeyO')f.click();if(e.code=='KeyN')next();if(e.code=='ArrowRight')e.shiftKey?skip(1):next((cur+1)%SC.length);if(e.code=='ArrowLeft')e.shiftKey?skip(-1):next((cur+SC.length-1)%SC.length);if(e.code=='KeyR')next(RACE);if(e.code=='KeyW'&&RING>=0)next(RING);if(e.code=='KeyG'&&WOOD>=0)next(WOOD);if(e.code=='KeyD')next(DANCE);if(e.code=='KeyC'&&FLOOR>=0)next(FLOOR);if(e.code=='KeyT'&&TITLE>=0)next(TITLE);if(e.code=='KeyB')next(BIKES);if(e.code=='KeyJ')next(JUMP);if(e.code=='KeyS'&&FLY>=0)next(FLY);if(e.code=='KeyU'&&DIVE>=0)next(DIVE);if(e.code=='KeyM'){mo=(mo+1)%5;bag=[];qbag=[]}if(e.code=='KeyP'&&POST)POST(!post);if(e.code=='KeyQ'){const nat=innerHeight*(devicePixelRatio||1);do qm=(qm+1)%5;while(qm>1&&RES[qm-1]>=nat);inf=max(inf,performance.now()+3e3);size()}if(e.code=='KeyI')inf=inf>1e9?0:1e12;if(e.code=='KeyH')help^=1;if(e.code=='Escape')help=0;if(e.code=='Comma'||e.code=='Period'){trim=Math.round(trim*100+(e.code=='Comma'?-1:1))/100;try{localStorage.trim=trim}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='ArrowUp'||e.code=='ArrowDown'){vol=min(1,max(0,Math.round(vol*20+(e.code=='ArrowUp'?1:-1))/20));if(vg)vg.gain.value=vol*vol;try{localStorage.vol=vol}catch(e){}inf=max(inf,performance.now()+3e3)}if(e.code=='KeyK'){const w=RTL(lkm);lkm=(lkm+1)%10;if(w!=RTL(lkm))size();inf=max(inf,performance.now()+3e3);if(POST&&!post)POST(1)}if(e.code=='KeyX'||e.code=='KeyV'){const d=e.shiftKey?-1:1;if(e.code=='KeyX')RHB=min(2,max(.8,Math.round(RHB*20+d)/20));else RHG=rhg(RML=min(3,max(1,Math.round(RML*10+d)/10)));tin=performance.now()+5e3}if(e.code=='KeyL')lock^=1;const m=/^Digit(\d)$/.exec(e.code),n=m&&(+m[1]+9)%10+(e.shiftKey?10:0);if(m&&SC[n])next(n)};
+v.onended=()=>{if(pli<PL.length-1)track(pli+1,1);else if(PL.length>1)track(0);else ui.textContent='click / space to replay\n\nor drop another file'}; // the next of the list; after the last one the first waits to be started
+v.onerror=()=>{if(pli<PL.length-1)return track(pli+1,aut);v.removeAttribute('src');ui.textContent="can't play this file\n\ndrop another one"};
 
 // ---- assets, all generated at load ----
 const mkc=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};
@@ -1250,7 +1263,7 @@ async function analyse(file){
       spectro(d,2048>>k,E,c,min(SN,c+48));
       for(let q=c;q<c+48&&q<SN;q+=4){for(let b=0;b<NB;b++)pk=max(pk,E[q*NB+b]);spoke(q,b=>max(0,1+Math.log10(E[q*NB+b]/pk+1e-9)/2.5))}
       apr=c/SN;sst='ANALYSING THE SONG '+(apr*100|0)+' %';
-      await new Promise(requestAnimationFrame);
+      await new Promise(r=>document.hidden?setTimeout(r):requestAnimationFrame(r)); // (a hidden window gets no frames: the next song of a list must still get analysed and start)
       if(g!=sgen)return;
     }
     songMap(E,1);sect(sdu=ab.duration);
@@ -2326,6 +2339,53 @@ void main(){
     }
   })-1;
 }
+// ---- 40 suits: an endless zoom through the four suits of a deck of cards. A heart is laid out of small spades, each spade of diamonds, each diamond of
+// clubs, each club of hearts again, and every other one of them is the next suit, so red and black always mix. The camera flies into the symbol in the middle; as a symbol grows it hollows out from its middle to an outline and
+// what it is made of shows. Over it two bands wind through the picture, carrying the suits along like a river. Card colours only, always: red and black on ivory (no hue, no flash); on the kick the solid symbols swell a little.
+let SUITS=-1;
+{
+  const N=15,PER=16,TW=.5,
+    BA=.7,BT=1.25,BR=BA/Math.sin(BT),BH=BR*Math.cos(BT),BP=BR*BT/4,BW=.08,F=v=>v.toFixed(4); // the bands: half the length and half the angle of one of the arcs they are made of, its radius, how far its centre is off the axis, the spacing of the symbols (four per arc), half the width
+  // symbols across a symbol (odd: the one in the middle is the way in) = the zoom per level, beats per level, turn per level
+  const sd=shader(`const vec3 IV=vec3(.82,.78,.66),RD=vec3(.7,.06,.08),BK=vec3(.06,.05,.06);
+float sd(vec2 p,int s){ // roughly the distance to a suit that reaches from -1 to 1: 0 heart, 1 spade, 2 diamond, 3 club (the middle is well inside each of them)
+  p.x=abs(p.x);
+  if(s==2)return(p.x*1.4+abs(p.y)-.95)*.58;
+  if(s==0){p.y+=.08;return min((p.x+abs(p.y)-.707)*.707,length(p-.354)-.5);} // a square on its corner with a circle on each upper side
+  float st=max(p.x-.05-.3*pow(clamp((-.3-p.y)/.6,0.,1.),2.),abs(p.y+.45)-.48); // the foot of spade and club
+  if(s==1){p=vec2(p.x,(.28-p.y)*.87)/.85;return min(st,min((p.x+abs(p.y)-.707)*.707,length(p-.354)-.5)*.85);} // the heart upside down
+  return min(min(st,length(p-vec2(0,.05))-.22),min(length(p-vec2(0,.42)),length(p-vec2(.39,-.12)))-.33);
+}
+// A band that winds through the picture like a river: arcs of a circle, bending up and down in turn (so the distance to it and the way along it are exact
+// and the symbols on it keep their shape). p: the place, x along the axis of the band; mv: how far the bends have travelled; fl: how far the symbols have flowed.
+void band(inout vec3 col,vec2 p,float mv,float fl,vec3 c1,vec3 c2,float e){
+  p.x+=mv;float i=floor(p.x/${F(2*BA)}+.5),sg,ph;vec2 v;
+  for(int n=0;n<2;n++){sg=1.-2.*mod(i,2.);v=p-vec2(i*${F(2*BA)},-sg*${F(BH)});ph=atan(v.x,sg*v.y);if(abs(ph)<=${F(BT)})break;i+=sign(v.x);} // which arc: the one in whose sector the place lies (the arcs meet at a slant)
+  float d=length(v)-${F(BR)},ad=abs(d);if(ad>${F(BW+.03)}||abs(ph)>${F(BT+.05)})return;
+  float us=(${F(BR)}*ph+i*${F(2*BR*BT)})/${F(BP)}-fl,id=floor(us);vec2 l=vec2((us-id-.5)*${F(BP)},sg*d)/${F(BW*.52)};
+  col=mix(col,IV,smoothstep(${F(BW+.016)}+e,${F(BW+.016)}-e,ad));col=mix(col,c2,smoothstep(${F(BW)}+e,${F(BW)}-e,ad));col=mix(col,c1,smoothstep(${F(BW*.86)}+e,${F(BW*.86)}-e,ad)); // a gap in ivory, the edge, the band
+  e/=${F(BW*.52)};col=mix(col,IV,max(smoothstep(e,-e,sd(l,int(mod(id,4.)))-.05*k),smoothstep(.13+e,.13-e,length(vec2(abs(l.x)-${F(BP/2/(BW*.52))},abs(l.y)-1.36))))); // the four suits in turn, a dot between them at either edge
+}
+void main(){
+  UV/z;u*=R(ro);vec2 u0=u;
+  float f=fract(m),S=pow(${N}.,2.+f),vis=1.;int b=int(m),pa=0;vec2 q=R(-${TW}*(f+1.7))*u/S; // S: the size of a cell of this level on screen (1 = half the height); q: the place in that cell
+  vec3 col=IV;
+  for(int j=0;j<5;j++){ // from the level far too big to see down to the smallest
+    int s=(b+j+pa)&3;float w=smoothstep(.5,1.6,S),px=4.6/r.y/S;vec2 l=q*2.3;
+    float d=sd(l,s)-.05*k*(1.-w),hl=mix(.8,.023/S,w), // hl: how deep the colour reaches in from the edge: all the way while small, a line when big
+      a=smoothstep(px,-px,d)*smoothstep(-hl-px,-hl+px,d)*smoothstep(9.,3.,S)*vis;
+    col=mix(col,(s&1)>0?BK:RD,a);vis*=1.-a; // (what lies under the colour of a symbol stays hidden)
+    vec2 g=R(${TW})*q*${N}.,id=floor(g+.5);
+    if(sd(R(-${TW})*id*2.3/${N}.,s)>-1./${N}.)break; // only the symbols whose middle is inside make up the big one
+    q=g-id;S/=${N}.;pa=int(mod(id.x+id.y,2.));
+  }
+  float e=2./z/r.y;
+  band(col,R(.35)*u0+vec2(0,.5+.06*sin(t*.13)),m*${F(BA)},m*8.,RD,BK,e);
+  band(col,R(-.5)*u0-vec2(0,.45+.06*sin(t*.11)),-m*${F(BA)},-m*8.,BK,RD,e);
+  u=gl_FragCoord.xy/r-.5;o=vec4(col*(1.-.7*dot(u,u)),1);
+}`,8e6,1);
+  if(sd)SUITS=SC.push(()=>{gm=((bp||t*2)/PER%4+4)%4;sd()})-1; // m: the level the camera is at, wrapped after the four suits (the picture is the same again)
+}
 // ---- 3D transitions (drawn straight into the frame; the two scenes are the render targets OLD and NEW): the old scene becomes the picture on a wall of 64 x 36 tiles in front of the new one. Over the bar before the change the tiles
 // shrink to glowing wire frames and the wall bends into a sphere, a tunnel, a rolling landscape or a twisted ribbon, whose shape is the spectrum
 // (each column of tiles is pushed out by its band, all of it by the kick). On the bar line it bursts and fades. Parts without a beat and the dark
@@ -2435,7 +2495,7 @@ void main(){
 }
 // ---- post: the finished frame (the render target MAIN) goes through one last pass onto the screen: everything bright glows
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
-let view=c,POST=0,post=0,P3=0,RETRO=0;
+let view=c,POST=0,post=0,P3=0,RETRO=0,ZAPP=0;
 if(gl){
   const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp,gn;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
@@ -2551,13 +2611,13 @@ void main(){
     POST.draw=()=>{
       x.flush();
       // the retro tube (retro.js) takes the finished frame as its picture: then this pass draws into a target of its own instead of onto the screen. ra: how far that look is in
-      const ra=post&&RETRO?(RTL(look)?lf:0)+(RTL(pl)&&lf<1?1-lf:0):0,F=ra>0?x.lo(W,H,0,'f'):0;
+      const ra=post&&RETRO?(RTL(look)?lf:0)+(RTL(pl)&&lf<1?1-lf:0):0,za=!ra&&post&&ZAPP&&ZP!==ZN,F=ra>0||za?x.lo(W,H,0,'f'):0; // za: no tube, but a zap or a tune is running: the same for ZAPP
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
       gl.bindFramebuffer(gl.FRAMEBUFFER,F?F.fb:null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1f(U('gn'),1-ra);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR||RTL(l)?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
       // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
-      if(F)RETRO(F,ra,(RTL(look)?look:pl)-6);
+      if(ra>0)RETRO(F,ra,(RTL(look)?look:pl)-6);else if(za)ZAPP(F);
     };
     POST(1);
   }
@@ -2578,13 +2638,24 @@ if(gl&&POST){
   const mk=src=>{const p=gl.createProgram(),f=cmp(gl.FRAGMENT_SHADER,src),L={};gl.attachShader(p,VS);gl.attachShader(p,f);gl.linkProgram(p);
     if(!gl.getProgramParameter(p,gl.LINK_STATUS)){console.warn('shader scene off: retro look',gl.getProgramInfoLog(p),gl.getShaderInfoLog(f));return 0}
     p.U=n=>L[n]??=gl.getUniformLocation(p,n);return p};
-  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;uniform vec4 zp,zq,zt,zb;uniform uint zs;out vec4 o;
+  // What an analogue set makes of a signal it has not quite got (the zap and the tune, core.js: zapEnv, tuneEnv), shared by the tube's first pass and by ZAPP below, which lays the same faults
+  // over the plain frame in the looks without a tube. zp: snow, roll, tear, colour; zq: gain, bend, brightness of the snow, how much afterglow stays; zt: blur, fine pattern, colour speckle,
+  // time; zb: the two bars, how far the pattern is pushed; zs: a new number every frame. p: which cell of the raster, u: how far along the line, vy: how far up the picture, rows: lines.
+  const ZG=`uniform vec4 zp,zq,zt,zb;uniform uint zs;
+float hsh(vec2 p){uvec3 v=uvec3(uint(p.x),uint(p.y),zs)*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;return float(v.x>>8u)/16777216.;} // whole numbers in, 0..1 out: the same grain on every graphics card, new every frame
+vec3 sig(vec3 s,vec2 p,float u,float vy,float rows){
+  vec2 cq=floor(p/vec2(4,1));vec3 cn=vec3(hsh(cq+vec2(9,0)),hsh(cq+vec2(40,0)),hsh(cq+vec2(77,0)));
+  s=max(mix(vec3(dot(s,vec3(.3,.59,.11))),s,zp.w)+zt.z*(cn-dot(cn,vec3(.3,.59,.11))),0.); // colour as far as the set still finds it, speckled where it is weak (colour has a quarter of the picture's sharpness along the line: so has its noise, and being colour only it leaves the brightness alone)
+  return max(s+(s+.15)*(zt.y*sin(6.2832*(u*56.+vy*rows*.31+zb.z))+zb.x*sin(6.2832*(vy*1.5+zt.w*.37))+zb.y*sin(6.2832*(vy*3.7-zt.w*.53))),0.); // the sound in the picture: the beat between sound and colour carrier, 56 slanted stripes to the line, and the sound itself as bars, wide ones for the bass, narrower ones above (added to the signal, so they show in the dark parts too)
+}
+float snw(vec2 p){float n=mix(hsh(p),hsh(p+vec2(1,0)),.3);return n*n*zq.z;} // snow: every line and every frame new, along the line a little smeared; mostly dark with bright specks`,
+    zu=(P,gw)=>{gl.uniform4f(P.U('zp'),ZP[0],ZP[1],ZP[2],ZP[3]);gl.uniform4f(P.U('zq'),ZP[4],ZP[5],XDR&&XDR.on?.66:1.1,gw);gl.uniform4f(P.U('zt'),ZP[6],ZP[7],ZP[9],t%997);gl.uniform4f(P.U('zb'),ZP[8],ZP[10],ZP[11],0);gl.uniform1ui(P.U('zs'),n&65535)}; // (the snow is held back in real HDR, where the picture can be several times as bright)
+  const pa=mk(`precision highp float;uniform sampler2D X,PV;uniform vec2 r,cp;uniform float ld,qn,il;uniform vec3 dk;out vec4 o;${ZG}
 vec3 S(float i,float y){return floor(textureLod(X,.5+(vec2((i+.5)/r.x,y)-.5)*cp,ld+zt.x).rgb*qn+.5)/qn;} // the frame at pixel i of this line, in the mode's steps per colour
-float hsh(vec2 p){uvec3 v=uvec3(uint(p.x),uint(p.y),zs)*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;return float(v.x>>8u)/16777216.;} // whole numbers in, 0..1 out: the same grain on every graphics card, new every frame (zs)
 void main(){
   vec2 p=floor(gl_FragCoord.xy);float y=(p.y+.5)/r.y;vec3 pv=max(texelFetch(PV,ivec2(p),0).rgb*dk-.004,0.); // what still glows here (the small step down: 8 bits would otherwise never quite reach black)
   if(il>=0.&&mod(p.y,2.)!=il){o=vec4(pv,1);return;} // interlaced: this line belongs to the other field, it is not drawn this frame
-  // the zap (core.js: zapEnv): what the set makes of the signal while it finds the new channel. zp: snow, roll, tear, colour; zq: gain, bend, brightness of the snow, how much of the afterglow stays. All of it in whole lines
+  // zap and tune (ZG above): all of it in whole lines
   // and whole pixels of this mode, so the colours replay as they do in a picture that stands. A line is 1.23 pictures wide and a frame 1.08 high: what lies between is black
   float f=1.-y,vy=mod(y+floor(zp.y*1.08*r.y)/r.y,1.08),lw=floor(r.x*1.23),
     px=mod(p.x+floor(r.x*(zp.z*exp(-f/.9)+zq.y*exp((vy-1.)*20.)+(hsh(vec2(0,p.y))-.5)*.1*zp.x*(1.-zp.x)))+2.*lw,lw); // (the last: while snow and picture mix, the noise pulls single lines about)
@@ -2596,12 +2667,8 @@ void main(){
     s=dot(abs(gy-g),vec3(1))<dot(abs(m-g),vec3(1))?gy:m; // or a colour from the palette, if that is closer
   }
   bool on=px<r.x&&vy<1.;s=min(s*zq.x,1.);
-  if(on){ // the tune (core.js: tuneEnv; zt: blur, fine pattern, colour speckle, time; zb: the two bars, how far the pattern is pushed): colour as far as the set still finds it, speckled where it is weak
-    vec2 cq=floor(p/vec2(4,1));vec3 cn=vec3(hsh(cq+vec2(9,0)),hsh(cq+vec2(40,0)),hsh(cq+vec2(77,0)));s=max(mix(vec3(dot(s,vec3(.3,.59,.11))),s,zp.w)+zt.z*(cn-dot(cn,vec3(.3,.59,.11))),0.); // (colour has a quarter of the picture's sharpness along the line: so has its noise, and being colour only it leaves the brightness alone)
-    s=max(s+(s+.15)*(zt.y*sin(6.2832*(px/r.x*56.+vy*r.y*.31+zb.z))+zb.x*sin(6.2832*(vy*1.5+zt.w*.37))+zb.y*sin(6.2832*(vy*3.7-zt.w*.53))),0.); // the sound in the picture: the beat between sound and colour carrier, 56 slanted stripes to the line, and the sound itself as bars, wide ones for the bass, narrower ones above (added to the signal, so they show in the dark parts too)
-  }else s=vec3(0);pv*=on?zq.w:zq.w*.4; // (while the picture rolls, the long afterglow of this look would smear it into a bright blur and fill the black bar: it is cut short for those frames, on the lines that are drawn)
-  float nv=mix(hsh(p),hsh(p+vec2(1,0)),.3); // snow: every line and every frame new, along the line a little smeared; mostly dark with bright specks
-  o=vec4(mix(max(s,pv),vec3(nv*nv*zq.z),zp.x),1); // (the snow does not go through the afterglow: adding up there it would only get brighter and smear)
+  if(on)s=sig(s,p,px/r.x,vy,r.y);else s=vec3(0);pv*=on?zq.w:zq.w*.4; // (while the picture rolls, the long afterglow of this look would smear it into a bright blur and fill the black bar: it is cut short for those frames, on the lines that are drawn)
+  o=vec4(mix(max(s,pv),vec3(snw(p)),zp.x),1); // (the snow does not go through the afterglow: adding up there it would only get brighter and smear)
 }`),pb=mk(`precision highp float;uniform sampler2D X,P;uniform vec2 r,pr;uniform float a,hs;uniform vec2 ml;out vec4 o;
 vec3 px(vec2 i){vec3 c=texelFetch(P,ivec2(clamp(i,vec2(0),pr-1.)),0).rgb;return c*c;} // (the beam adds up light, not screen values)
 void main(){
@@ -2621,13 +2688,24 @@ void main(){
   }
   o=vec4(mix(texture(X,q).rgb,c,a)*hs,1); // hs: with real HDR everything is drawn darker here and turned up again afterwards (hdr.js), so the lit phosphor strips can be brighter than white
 }`);
+  const pz=mk(`precision highp float;uniform sampler2D X;uniform vec2 r,rr;uniform float bl;out vec4 o;${ZG}
+void main(){ // the same faults on the plain frame: it stays as sharp as it is, but lines, grain and bar are those of a television picture (rr: 576 lines), whatever the size of the canvas
+  vec2 q=gl_FragCoord.xy/r,p=floor(q*rr);float vy=mod(q.y+floor(zp.y*1.08*rr.y)/rr.y,1.08),
+    px=mod(q.x+zp.z*exp((q.y-1.)/.9)+zq.y*exp((vy-1.)*20.)+(hsh(vec2(0,p.y))-.5)*.1*zp.x*(1.-zp.x)+2.46,1.23);
+  o=vec4(mix(px<1.&&vy<1.?sig(min(textureLod(X,vec2(px,vy),bl).rgb*zq.x,1.),p,px,vy,rr.y):vec3(0),vec3(snw(p)),zp.x),1);
+}`);
   let n=0;const lt=MD.map(()=>0);
+  if(pz)ZAPP=F=>{ // F: the finished frame, as for the tube
+    const rx=floor(576*W/H);gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pz);n++;
+    gl.uniform1i(pz.U('X'),7);gl.uniform2f(pz.U('r'),W,H);gl.uniform2f(pz.U('rr'),rx,576);gl.uniform1f(pz.U('bl'),ZP[6]>0?Math.log2(max(1,W/rx))+ZP[6]:0);zu(pz,1); // (blur: down to the raster first, then as far as the tune asks)
+    gl.drawArrays(gl.TRIANGLES,0,3);gl.activeTexture(gl.TEXTURE0);
+  };
   if(pa&&pb)RETRO=(F,a,m)=>{ // F: the target the post pass has just drawn the frame into; a: how far the look is in (it fades with the scene change); m: which of the modes
     const[RW,RH,qn,il]=MD[m],fld=il&&!matchMedia('(prefers-reduced-motion: reduce)').matches,A=x.lo(RW,RH,0,'r'+(n&1)),B=x.lo(RW,RH,0,'r'+(++n&1)),d=max(0,(last-lt[m])/1e3),tw=min(1,4/3*H/W),th=min(1,W/H*3/4);lt[m]=last;
     gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,F.tex);gl.generateMipmap(gl.TEXTURE_2D); // (unit 7 has the sampler with the blurred copies; the post pass binds its own texture there again next frame)
     gl.activeTexture(gl.TEXTURE14);gl.bindTexture(gl.TEXTURE_2D,B.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,A.fb);gl.viewport(0,0,RW,RH);gl.useProgram(pa);gl.uniform1i(pa.U('X'),7);gl.uniform1i(pa.U('PV'),14);gl.uniform2f(pa.U('r'),RW,RH);gl.uniform2f(pa.U('cp'),tw,th);
-    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1);gl.uniform4f(pa.U('zp'),ZP[0],ZP[1],ZP[2],ZP[3]);gl.uniform4f(pa.U('zq'),ZP[4],ZP[5],XDR&&XDR.on?.66:1.1,ZP[1]||ZP[2]?.45:1);gl.uniform1ui(pa.U('zs'),n&65535);gl.uniform4f(pa.U('zt'),ZP[6],ZP[7],ZP[9],t%997);gl.uniform4f(pa.U('zb'),ZP[8],ZP[10],ZP[11],0); // (the snow is held back in real HDR, where the tube is several times as bright) // (d: since this mode last ran, so nothing stale glows on after the look was away)
+    gl.uniform1f(pa.U('ld'),Math.log2(max(1,Math.sqrt(W*tw/RW*H*th/RH))));gl.uniform3f(pa.U('dk'),...TAU3.map(v=>glow(d,v,fld)));gl.uniform1f(pa.U('qn'),qn);gl.uniform1f(pa.U('il'),fld?n&1:-1);zu(pa,ZP[1]||ZP[2]?.45:1); // (d: since this mode last ran, so nothing stale glows on after the look was away)
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.bindTexture(gl.TEXTURE_2D,A.tex);
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.useProgram(pb);gl.uniform1i(pb.U('X'),7);gl.uniform1i(pb.U('P'),14);gl.uniform2f(pb.U('r'),W,H);gl.uniform2f(pb.U('pr'),RW,RH);gl.uniform1f(pb.U('a'),a);gl.uniform2f(pb.U('ml'),RML,(3-RML)/2);gl.uniform1f(pb.U('hs'),XDR&&RTL(look)?1/RHG:1); // (the same condition that switches the HDR canvas on in main.js, so the two never disagree for a frame)
@@ -2677,19 +2755,19 @@ function next(n,mid,fast){ // mid: the transition is centred on the bar line (it
   prev=cur;cur=n??pick(quiet?1:undefined);
   bag=bag.filter(i=>i!=cur);qbag=qbag.filter(i=>i!=cur);sw=tt;sb=beats;scn++;
   // how long the new scene stays: 8 or 16 beats, and the faster the song, the more often 8 (at 90 BPM in 25 % of the cases, at 150 BPM in 60 %).
-  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes and the dive 32 beats, the race, the jump & run and the attack run 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
+  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes, the dive and the suits (two levels of its zoom) 32 beats, the race, the jump & run and the attack run 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
   // The transition into it takes a bar (four in the dark mood, but no more than 10 s), at most half of the scene that is leaving. nx = the beat on which the next scene takes over.
-  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
+  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES||cur==SUITS;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
   sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY?48:big?32:rn<.25+.35*fa?8:16;
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
-  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0]; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
+  pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0];if(cur==SUITS)alk=0; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
-  // The two transitions of the tube looks (core.js: zapEnv, tuneEnv), not for people who asked for reduced motion. The zap, every other time: not in calm passages or the dark mood (it is
-  // a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line. The tune takes its place in the calm passages and the dark mood, comes now and
-  // then otherwise, and takes at most eight beats.
-  zapAt=zapOn=zapDry=0;if(RETRO&&post&&RTL(lkm)&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
-    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<.5){tk=7;zapLast=last;zapAt=mid?tl/2:0}
-    else if(!fast&&Math.random()<(quiet||dk>.5?.5:.15)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
+  // Zap and tune (core.js: zapEnv, tuneEnv; drawn in retro.js): in a tube look the usual way to change the scene, in the other looks they come now and then. Not for people who asked for
+  // reduced motion. The zap: not in calm passages or the dark mood (it is a hard cut) and not more often than every two seconds (someone leaning on N); it cuts on the bar line.
+  // The tune takes its place in the calm passages and the dark mood, comes more rarely otherwise, and takes at most eight beats.
+  zapAt=zapOn=zapDry=0;if(RETRO&&ZAPP&&post&&!matchMedia('(prefers-reduced-motion: reduce)').matches){const tub=RTL(lkm);
+    if(!quiet&&dk<=.5&&last-zapLast>2e3&&Math.random()<(tub?.5:.15)){tk=7;zapLast=last;zapAt=mid?tl/2:0}
+    else if(!fast&&Math.random()<(quiet||dk>.5?tub?.5:.15:tub?.15:.05)){tk=8;tl=min(tl,6,BPM?480/BPM:4)}
   }
   ta=Math.random()*TAU;if(TR){x.copy(MAIN,OLD);if(tk==5){x.save();x.use(NEW);x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';x.fillStyle='#000';x.fillRect(0,0,W,H);x.use(MAIN);x.restore()}}if(cur==RACE)rt=0; // the old scene moves to its own render target (half size: it only shows on shrinking tiles)
 }
@@ -2802,8 +2880,8 @@ function frame(now){
   const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
   if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
-  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?q:1;
-  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt){ // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
+  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?tk<7?q:+(tk==7?p*tl>=zapAt:p>=.5):1; // (zap and tune change the look where they change the scene: at the cut, or behind the snow)
+  ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt&&t-sw<zapAt+.6){ // (.6 s: it is over by then at any tempo, and the pass that draws it can rest) // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
     if(!zapOn){zapOn=1;if(!strobe(last/1e3,1))zapDry=1}
     ZP=zapEnv(t-sw-zapAt,min(1.2,max(.72,120/(BPM||120))),.3+.6*(ta*7.3%1),ta%.2>.1?.2:-.2).concat(0,0,0,0,0,0);if(zapDry)ZP[0]=0;
   }else if(tk==8&&prev>=0&&p<1){ // the tune: the bars follow bass and middle, slowly (they are wide: no pumping), the lines sway, the fine pattern squirms with the bass
@@ -2856,7 +2934,7 @@ function frame(now){
     x.save();x.clip(O,'evenodd');show(prev,1,1);x.restore();
     x.save();x.clip(A);show(cur,1,cz);x.restore();
     x.strokeStyle=hs(hue,1-q,80);x.lineWidth=3*D;x.stroke(A);
-  }else show(tk>6&&prev>=0&&(tk==7?p*tl<zapAt:p<.5)?prev:cur,1,cz); // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
+  }else{const old=tk>6&&prev>=0&&p<1&&(tk==7?p*tl<zapAt:p<.5),LK=look;if(old)look=pl;show(old?prev:cur,1,cz);look=LK} // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
   if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23){ // (not the race and the ring world: they carry text; not the black hole: it looks wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
     const mi=1+(scn%6==1),src=()=>{if(!GX)return c;const S=x.lo(W,H);x.copy(MAIN,S);return S}; // WebGL: a copy of the frame as it is now
     x.save();x.globalAlpha=ma;x.globalCompositeOperation='source-over';x.setTransform(-1,0,0,1,W,0);x.drawImage(src(),0,0,W/2,H,0,0,W/2,H);
@@ -2921,8 +2999,8 @@ function frame(now){
     x.restore();
   }
   if(help){ // H: every key and what it is set to right now
-    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN A FILE (OR DROP ONE ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
-      ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
+    const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN FILES (OR DROP THEM ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
+      ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['SHIFT+ARROWS','NEXT / PREVIOUS SONG'+(PL.length>1?'     NOW: '+(pli+1)+' OF '+PL.length:'')],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
       ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],

@@ -33,6 +33,7 @@ const FILES = [ // in this order; scene files push themselves onto the scene lis
   'scene-37-attack-run.js',
   'scene-38-the-dive.js',
   'scene-39-dance-floor.js',
+  'scene-40-suits.js',
   'transitions.js',
   'post.js',
   'retro.js',

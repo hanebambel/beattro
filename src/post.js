@@ -1,6 +1,6 @@
 // ---- post: the finished frame (the render target MAIN) goes through one last pass onto the screen: everything bright glows
 // (bloom from blurred copies of the frame), faint colour fringes and darker corners like a lens, a breath of grain. All scenes get it. P switches it off.
-let view=c,POST=0,post=0,P3=0,RETRO=0;
+let view=c,POST=0,post=0,P3=0,RETRO=0,ZAPP=0;
 if(gl){
   const pp=gl.createProgram(),pf=cmp(gl.FRAGMENT_SHADER,`precision highp float;uniform sampler2D X,GA,NZ;uniform vec2 r;uniform vec3 ga;uniform float t,tf,h,da,lf,dc,k,tc,sb,sx,lp,gn;uniform int lk,l2;out vec4 o;
 float L(vec2 p){return dot(textureLod(X,p,1.).rgb,vec3(.3,.5,.2));}
@@ -116,13 +116,13 @@ void main(){
     POST.draw=()=>{
       x.flush();
       // the retro tube (retro.js) takes the finished frame as its picture: then this pass draws into a target of its own instead of onto the screen. ra: how far that look is in
-      const ra=post&&RETRO?(RTL(look)?lf:0)+(RTL(pl)&&lf<1?1-lf:0):0,F=ra>0?x.lo(W,H,0,'f'):0;
+      const ra=post&&RETRO?(RTL(look)?lf:0)+(RTL(pl)&&lf<1?1-lf:0):0,za=!ra&&post&&ZAPP&&ZP!==ZN,F=ra>0||za?x.lo(W,H,0,'f'):0; // za: no tube, but a zap or a tune is running: the same for ZAPP
       gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,MAIN.tex);gl.generateMipmap(gl.TEXTURE_2D);gl.activeTexture(gl.TEXTURE0); // the blurred copies for the glow
       gl.bindFramebuffer(gl.FRAMEBUFFER,F?F.fb:null);gl.viewport(0,0,W,H);gl.useProgram(pp);gl.uniform1f(U('gn'),1-ra);gl.uniform1i(U('X'),7);gl.uniform2f(U('r'),W,H);gl.uniform1f(U('t'),t);gl.uniform1f(U('tf'),ft);gl.uniform1f(U('h'),hue/360);gl.activeTexture(gl.TEXTURE13);gl.bindTexture(gl.TEXTURE_2D,x.at[0]);gl.activeTexture(gl.TEXTURE0);gl.uniform1i(U('GA'),13);gl.uniform3f(U('ga'),x.at[1],x.at[2],x.at[3]);gl.uniform1f(U('da'),da);const rl2=l=>l==4&&XDR||RTL(l)?0:l;gl.uniform1i(U('lk'),post?rl2(look):-1);gl.uniform1i(U('l2'),post?rl2(pl):-1);gl.uniform1f(U('lf'),lf);gl.uniform1f(U('dc'),post?dca:0);gl.uniform1f(U('k'),kick);gl.uniform1f(U('tc'),post?tca:0);gl.uniform1f(U('sb'),post?stb*(XDR&&XDR.on?.6:1):0);gl.uniform1f(U('sx'),sbx);gl.uniform1f(U('lp'),floor(beats/16));gl.uniform1i(U('NZ'),4); // (in real HDR the strobe is held back: the HDR pass would push it past paper white)
       // with real HDR the HDR look is the normal picture, turned up afterwards (hdr.js)
       const p3=+(post&&!XDR&&(look==4||pl==4&&lf<1)&&matchMedia('(color-gamut: p3)').matches);if(p3!=P3){P3=p3;try{gl.drawingBufferColorSpace=p3?'display-p3':'srgb'}catch(e){P3=0}} // wide colour for the HDR style
       gl.drawArrays(gl.TRIANGLES,0,3);
-      if(F)RETRO(F,ra,(RTL(look)?look:pl)-6);
+      if(ra>0)RETRO(F,ra,(RTL(look)?look:pl)-6);else if(za)ZAPP(F);
     };
     POST(1);
   }
