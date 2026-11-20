@@ -8,7 +8,7 @@ suits of a deck of cards, a flight out of the solar system to a black hole
 and more.
 
 No server, no install, no assets: everything is code in `index.html`
-(about 305 KB).
+(about 306 KB).
 
 <img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
 

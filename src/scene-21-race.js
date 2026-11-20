@@ -249,7 +249,7 @@ void main(){
 RACE=SC.push(()=>{
   if(live){const sm=1-.55*dk;rt+=dt*sm;rp+=dt*(16+14*min(1,lvl))*sm} // slower in the dark mood
   // each generation morphs into the next during its last 1.2 s (m: 0 > 1)
-  let st=(rt/4|0)%6,m=max(0,(rt%4-2.8)/1.2);m=st<5?m*m*(3-2*m):0;
+  let st=lock?(rt/4|0)%6:min(5,rt/4|0),m=max(0,(rt%4-2.8)/1.2);m=st<5?m*m*(3-2*m):0; // (past its 24 s it stays in the last generation: a visit that runs over, in a slow song or waiting for a step in the song, must not start the race again. Held with L it goes round)
   if(!race3d||!shR){st&=1;m*=!st} // no WebGL: only the two 16-bit looks
   const bk=max(-.3,min(.3,camSet()*1.3)),ga=x.globalAlpha,rl=roll;
   const rainbow=a=>{x.globalAlpha=a;gm=1;gp=rp%3e4;roll=bk*.3;shR();roll=rl;x.translate(W/2,H/2);ship(x,-bk*R*.3,H*.2,R*.42,bk,5)};
