@@ -9,7 +9,7 @@ mat2 R(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 vec3 pal(float x){return .5+.5*cos(6.283*(x+vec3(0,.33,.67)));}
 #define UV vec2 u=(gl_FragCoord.xy*2.-r)/r.y
 `;
-function shader(src,px=8e6,keep){ // keep: return the draw function instead of adding it as a scene
+function shader(src,px=8e6,keep){ // keep: return the draw function instead of adding it as a scene; 2: that function only renders, into a target of its own, and returns it (for a scene whose second pass, at the same pixel budget, reads it)
   if(!gl)return;
   const pg=gl.createProgram(),fs=cmp(gl.FRAGMENT_SHADER,HDR+src);
   gl.attachShader(pg,VS);gl.attachShader(pg,fs);gl.linkProgram(pg);
@@ -17,11 +17,11 @@ function shader(src,px=8e6,keep){ // keep: return the draw function instead of a
   const L={},U=n=>L[n]??=gl.getUniformLocation(pg,n);
   const draw=()=>{
     // ponytail: fixed pixel budget per shader; make it adaptive to frame time if machines differ too much
-    const gs=min(1,Math.sqrt(px*QS/W/H)),w=max(1,W*gs|0),h=max(1,H*gs|0),T=x.lo(w,h);
+    const gs=min(1,Math.sqrt(px*QS/W/H)),w=max(1,W*gs|0),h=max(1,H*gs|0),T=keep>1?(x.lo(w,h),x.lo(w,h,0,'a')):x.lo(w,h); // (2: the second pass's target is asked for first, so that making it cannot push this one out of the pool)
     gl.bindFramebuffer(gl.FRAMEBUFFER,T.fb);gl.viewport(0,0,w,h);gl.useProgram(pg); // (what GX has collected for the frame so far stays collected: the frame is then drawn in one go)
     gl.uniform2f(U('r'),w,h);gl.uniform1f(U('t'),t);gl.uniform1f(U('k'),kick);gl.uniform1f(U('l'),min(1,lvl));
     gl.uniform1f(U('h'),hue/360);gl.uniform1f(U('z'),ts);gl.uniform1f(U('ro'),roll);gl.uniform1f(U('m'),gm);gl.uniform1f(U('p'),gp);gl.uniform1fv(U('B'),B);gl.uniform1i(U('S'),2);gl.uniform1i(U('X'),3);
-    gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.drawArrays(gl.TRIANGLES,0,3);if(keep>1)return T;
     // zoom + roll happen in the shader; drawn opaque (crossfaded by alpha) so it stays crisp, no trails
     x.setTransform(XS,0,0,XS,0,0);x.globalCompositeOperation='source-over';x.drawImage(T,0,0,W,H); // XS: .5 while drawing into the half-size target of a transition
   };

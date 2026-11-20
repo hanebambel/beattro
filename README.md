@@ -2,12 +2,13 @@
 
 A music visualiser in one HTML file, in the style of the demoscene of the late
 eighties and early nineties. Drop a song on the page and it plays it with
-40 scenes that follow the beat: tunnels, copper bars, fractals, a race, a ring
+41 scenes that follow the beat: tunnels, copper bars, fractals, a race, a ring
 world built from the song itself, a dance floor, an endless zoom through the
-suits of a deck of cards and more.
+suits of a deck of cards, a flight out of the solar system to a black hole
+and more.
 
 No server, no install, no assets: everything is code in `index.html`
-(about 270 KB).
+(about 305 KB).
 
 <img src="screenshots/title.jpg" width="720" alt="The title scene in the retro tube look">
 
@@ -47,6 +48,15 @@ pulses then sit on the beat instead of chasing it.
   snow, and the new scene comes in soft and grey until the set locks on to
   it). In the tube looks that is the usual way to change, in the other
   looks it happens now and then, on the plain picture.
+- **The grand tour**: a flight from an orbit round the Earth past the Moon,
+  through the asteroid belt, past Jupiter, down through Saturn's rings and
+  past two comets to a space probe on its way out, then faster than light
+  to a black hole and into it, with the sun rising over the Earth's rim,
+  eclipses, lens flares and a fog through which planets, moons and rocks
+  cast their shadows. As one
+  scene among the others every visit shows the next of its five legs; with
+  `E` it is held and the song is the flight, Earth as it starts, the black
+  hole as it ends.
 - **Title and artist** from the file's tags (ID3v2 in an MP3, the iTunes
   tags in an MP4 or M4A): the scroller opens with them when the song starts
   and brings them again on every round; the dark mood, which has no
@@ -68,6 +78,7 @@ pulses then sit on the beat instead of chasing it.
 | `Shift` + `Left` `Right` | previous / next song of the list (also the media keys) |
 | `1`-`9`, `0` | scenes 1 to 10, with `Shift` 11 to 20 |
 | `R` `W` `G` `D` `T` `B` `J` `S` `U` `C` | race, ring world, glow forest, dance, title, light bikes, jump and run, attack run, the dive, dance floor |
+| `E` | the grand tour, held for the whole song (`L`, `N` or another scene ends that) |
 | `L` | hold the scene |
 | `M` | mood: auto, party, dark, disco, techno |
 | `K` | look |

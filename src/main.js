@@ -8,13 +8,13 @@ const pick=calm=>{
   return calm?qbag.at(-1):calm===0?bag.findLast(i=>!CALM.includes(i)&&i!=RACE)??bag.at(-1):bag.at(-1); // calm: 1 = a calm one, 0 = a wild one, undefined = whatever is next
 };
 function next(n,mid,fast){ // mid: the transition is centred on the bar line (it starts half its length early); fast: the song has just stepped up or down, no time for a slow one
-  prev=cur;cur=n??pick(quiet?1:undefined);
+  prev=cur;cur=n??pick(quiet?1:undefined);trip&&=cur==TOUR; // (E: the grand tour is held for the whole song; any other scene ends that)
   bag=bag.filter(i=>i!=cur);qbag=qbag.filter(i=>i!=cur);sw=tt;sb=beats;scn++;
   // how long the new scene stays: 8 or 16 beats, and the faster the song, the more often 8 (at 90 BPM in 25 % of the cases, at 150 BPM in 60 %).
-  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes, the dive and the suits (two levels of its zoom) 32 beats, the race, the jump & run and the attack run 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
+  // Only the scenes with more to see stay longer: ring world, glow forest, the title, the light bikes, the dive and the suits (two levels of its zoom) 32 beats, the race, the jump & run, the attack run and the grand tour (one leg of it) 48. The dark mood takes its time: 16 or 32 beats, 64 for those three.
   // The transition into it takes a bar (four in the dark mood, but no more than 10 s), at most half of the scene that is leaving. nx = the beat on which the next scene takes over.
-  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES||cur==SUITS;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
-  sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY?48:big?32:rn<.25+.35*fa?8:16;
+  const tb=min(dk>.5?16:4,sl/2),fa=BPM?min(1,max(0,(BPM-90)/60)):.5,rn=Math.random(),big=cur==RACE||cur==JUMP||cur==FLY||cur==DIVE||cur==RING||cur==WOOD||cur==TITLE||cur==BIKES||cur==SUITS||cur==TOUR;tl=min(dk>.5?10:6,BPM?tb*60/BPM:2+4*dk);
+  sl=dk>.5?big?64:rn<.5?16:32:cur==RACE||cur==JUMP||cur==FLY||cur==TOUR?48:big?32:rn<.25+.35*fa?8:16;
   if(abs(bp-nx)>4)nx=ceil(bp/4)*4;nx+=sl;
   pl=look;alk=tc?[0,0,1,2,2][Math.random()*5|0]:dc?[0,0,0,3,4,4][Math.random()*6|0]:[0,0,0,0,0,1,2,2,3,4][Math.random()*10|0];if(cur==SUITS)alk=0; // and its look, when looks change with the scenes: mostly normal, sometimes solid, neon, psychedelic or the HDR style (disco: no solid, no neon; techno: only normal, solid and neon). Code rain is a transition now and a look only on K
   tk=TR?(quiet||dk>.5?[4,5,6][Math.random()*3|0]:[0,1,2,3,5,5,6,6][Math.random()*8|0]):Math.random()*6|0;if(tk==6&&lkm==5)tk=4; // (no code rain over the code rain look)
@@ -119,24 +119,26 @@ function frame(now){
   if(t<sw)sw=t;
   // sections: the analysed song knows where the beat comes in or drops out (SEC). Shortly before such a point it is armed and then fired
   // on the next audible beat, so the cut sits on the kick: fast cut to a wild scene (more) or a calm one (the beat drops out); a big "more" also flashes and shakes,
-  // and because the future is known, the picture dims over the 8 beats before it (preDim in core.js).
-  const cps=SN/dur(),sc=t*cps,SE=an||FAKE?SEC:[];let pre=arm&&arm[1]>.6?1:0; // not before the song plays: the waiting screen stays calm
+  // and because the future is known, the picture dims over the 8 beats before it (preDim in core.js). After that dimming nothing more is put between the old scene and the new one:
+  // the picture goes dark, and the frame in which the light is back is the first of the new scene. A plain cut (no tiles, no zap), and the fire itself ends the dimming (sdn: the step
+  // that has fired dims no more; without it a kick just before the step's own column cut to a new scene that stayed dark for a few frames). Scheduled changes wait meanwhile, see below.
+  const cps=SN/dur(),sc=t*cps,SE=an||FAKE?SEC:[];let pre=arm&&arm[1]>.6?1:0;if(sc<psc)sdn=-1; // not before the song plays: the waiting screen stays calm
   for(const s of SE){
-    if(psc<s[0]-.3*cps&&sc>=s[0]-.3*cps&&sc-psc<cps)arm=[t,s[1],s[2]];
-    if(s[1]>.6&&s[0]>sc)pre=max(pre,preDim(s[0]/cps,t,T0,grid?BPM:0));
+    if(psc<s[0]-.3*cps&&sc>=s[0]-.3*cps&&sc-psc<cps)arm=[t,s[1],s[2],s[0]];
+    if(s[1]>.6&&s[0]>sc&&s[0]!=sdn)pre=max(pre,preDim(s[0]/cps,t,T0,grid?BPM:0));
   }
   psc=sc;
   if(arm&&(t<arm[0]||t-arm[0]>(arm[1]<0?.3:.6)||arm[1]>0&&bh&&t-arm[0]>.1)){
     const up=arm[1]>0,a=min(1,abs(arm[1]));
-    if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6)sub=max(sub,a)}
-    if(!lock&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1),0,1);tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any // the race always runs its full 24 s
+    if(up&&t>=arm[0]){bang=a;hue+=67;sbu=bp;flash(12);if(a>.6){sub=max(sub,a);sdn=arm[3];pre=0}}
+    if(!lock&&!trip&&cur!=RACE&&t>=arm[0]){next(pick(up?0:arm[2]>.25?undefined:1),0,1);if(up&&a>.6){prev=-1;cub=0;wipe=1}else tl=dk>.5?4:.9} // more: a wild scene; the beat drops out: a calm one; quieter but the beat goes on: any. After the dimming a plain cut (prev=-1: nothing to come from, so no transition and no zap; a cube still turning is dropped; wipe: the frame is cleared once, or the old scene would fade out under the new one as a trail; and p below is 1 at once, so nothing that follows the transition's clock moves after the cut), otherwise a fast transition // the race always runs its full 24 s, L and E hold their scene: there the light comes back on the scene that was dimmed
     arm=0;
   }
-  bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash, the shake and the fast cut that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
-  const soon=SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming: let it do the switching
+  bang*=Math.exp(-dt*4);{const br=(grid?BPM:120)/60;pd=dk?pd+(pre-pd)*min(1,dt*br*.6):pre<pd?pre:pd+(pre-pd)*min(1,dt*br*4)}view.style.opacity=1-(dk?pd*(grid?.3:.4):pd*pd*.75); // pd follows pre at a pace counted in beats as well. Dark mood: it dims less (to about three quarters either way: over two bars pd lags less than over 2 s, so the factor is smaller) and lags, and comes back just as slowly, over about four beats: there the flash and the shake that answer the dimming are missing or muted, and a picture that went dark and jumped back looked like a screen saving power; the new scene is cut in at the step and the light comes back on it. Otherwise it snaps back with the bang, and only going down is eased a little, so that starting the song in the middle of the two bars does not switch the light off at once
+  const soon=arm||pre||SE.some(s=>s[0]>sc&&s[0]<sc+3*cps); // a section change is coming (within 3 s, armed and not yet fired, or the picture is dimming for it): let it do the switching
   // with a tempo: a new scene every 8 or 16 beats, the big ones longer (see next()). The transition starts half its length early, so its turning point (the wall has become the shape and bursts) is on the beat
-  if(!lock&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
-  const p=min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?tk<7?q:+(tk==7?p*tl>=zapAt:p>=.5):1; // (zap and tune change the look where they change the scene: at the cut, or behind the snow)
+  if(!lock&&!trip&&!soon&&t-sw>1&&((grid&&!quiet?bp>=nx-min(dk>.5?16:4,sl/2)/2:cur!=RACE&&beats-sb>=sl)||t-sw>(grid&&!quiet?60:24)*(1+dk)))next(undefined,grid&&!quiet);
+  const p=prev<0?1:min(1,(t-sw)/tl),q=p*p*(3-2*p);lf=p<1&&prev>=0?tk<7?q:+(tk==7?p*tl>=zapAt:p>=.5):1; // (zap and tune change the look where they change the scene: at the cut, or behind the snow)
   ZP=ZN;if(tk==7&&prev>=0&&t-sw>=zapAt&&t-sw<zapAt+.6){ // (.6 s: it is over by then at any tempo, and the pass that draws it can rest) // the zap starts: its snow is a flash and counts among the strobes' three a second; if the limiter has none to give, it comes without snow
     if(!zapOn){zapOn=1;if(!strobe(last/1e3,1))zapDry=1}
     ZP=zapEnv(t-sw-zapAt,min(1.2,max(.72,120/(BPM||120))),.3+.6*(ta*7.3%1),ta%.2>.1?.2:-.2).concat(0,0,0,0,0,0);if(zapDry)ZP[0]=0;
@@ -155,7 +157,7 @@ function frame(now){
   // fade instead of clear = glow trails; everything else is additive
   x.setTransform(1,0,0,1,0,0);x.globalAlpha=1;x.globalCompositeOperation='source-over';
   if(cub&&!(p<1&&prev>=0)){x.copy(NEW,MAIN);cub=0} // the cube has landed: the new scene moves from its own target to the frame, trails and all
-  x.fillStyle='rgba(0,0,10,.4)';x.fillRect(0,0,W,H);
+  x.fillStyle=wipe?'rgb(0,0,10)':'rgba(0,0,10,.4)';wipe=0;x.fillRect(0,0,W,H);
   x.globalCompositeOperation='lighter';
   x.fillStyle=hs(hue,(kick*.07+bang*.5*(1-tca))*(1-.7*dk),50+bang*40*(1-tca));x.fillRect(0,0,W,H);
   roll=sin(t*.4)*.15+cr;x.translate(W/2,H/2);x.rotate(roll);
@@ -191,7 +193,7 @@ function frame(now){
     x.save();x.clip(A);show(cur,1,cz);x.restore();
     x.strokeStyle=hs(hue,1-q,80);x.lineWidth=3*D;x.stroke(A);
   }else{const old=tk>6&&prev>=0&&p<1&&(tk==7?p*tl<zapAt:p<.5),LK=look;if(old)look=pl;show(old?prev:cur,1,cz);look=LK} // (zap and tune: one scene at a time, the old one until the cut or until the snow has closed. p, not t: down here t is no longer the song's clock)
-  if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23){ // (not the race and the ring world: they carry text; not the black hole: it looks wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
+  if(ma>.01&&cur!=RACE&&cur!=RING&&cur!=23&&cur!=TOUR){ // (not the race and the ring world: they carry text; not the black hole and the grand tour, which ends at it: they look wrong doubled) // mirror: the left half fades in again on the right, every other time also the top at the bottom
     const mi=1+(scn%6==1),src=()=>{if(!GX)return c;const S=x.lo(W,H);x.copy(MAIN,S);return S}; // WebGL: a copy of the frame as it is now
     x.save();x.globalAlpha=ma;x.globalCompositeOperation='source-over';x.setTransform(-1,0,0,1,W,0);x.drawImage(src(),0,0,W/2,H,0,0,W/2,H);
     if(mi>1){x.setTransform(1,0,0,-1,0,H);x.drawImage(src(),0,0,W,H/2,0,0,W,H/2)}
@@ -257,7 +259,7 @@ function frame(now){
   if(help){ // H: every key and what it is set to right now
     const o=(a,i)=>a.map((v,j)=>j==i?'['+v+']':v).join('  '),Lk=LOOKS(),L=[['SPACE','PLAY / PAUSE'],['O','OPEN FILES (OR DROP THEM ON THE PAGE)'],['F','FULLSCREEN'],['UP / DOWN','VOLUME     NOW: '+Math.round(vol*100)+' %'],
       ['N','NEXT SCENE (RANDOM)'],['ARROWS','NEXT / PREVIOUS SCENE IN ORDER     NOW: '+(cur+1)+' OF '+SC.length],['SHIFT+ARROWS','NEXT / PREVIOUS SONG'+(PL.length>1?'     NOW: '+(pli+1)+' OF '+PL.length:'')],['L','HOLD THE SCENE     '+o(['OFF','ON'],lock)],
-      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],
+      ['1-9, 0','SCENES 1 TO 10     WITH SHIFT: 11 TO 20'],['R W G D','RACE, RING WORLD, GLOW FOREST, DANCE'],['T B J S U C','TITLE, LIGHT BIKES, JUMP AND RUN, ATTACK RUN, THE DIVE, DANCE FLOOR'],['E','GRAND TOUR, HELD: THE SONG IS THE FLIGHT     '+o(['OFF','ON'],+trip)],
       ['M','MOOD     '+o(['AUTO ('+['PARTY','DARK','DISCO','TECHNO'][MO]+')','PARTY','DARK','DISCO','TECHNO'],mo)],['K','LOOK     '+o(['WITH THE SCENES ('+Lk[look]+')'],lkm>8?0:-1)+'  '+o(Lk,lkm>8?-1:lkm)],
       ['Q','RESOLUTION     '+o(['STEADY 60 FPS',...RN],qm)],['P','GLOW AND LENS     '+o(['OFF','ON'],+!!post)],['I','FRAME RATE DISPLAY     '+o(['OFF','ON'],+(inf>1e9))],
       [', AND .','PICTURE EARLIER / LATER     NOW: '+(trim*1e3|0)+' MS'],['X AND V','TUBE LOOKS: BRIGHTNESS (REAL HDR ONLY), PHOSPHOR STRIPS     SHIFT: LESS     NOW: '+RHB.toFixed(2)+', '+RML.toFixed(1)],['H / ESC','THIS LIST']],
